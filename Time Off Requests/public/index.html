@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="Bright Harbor Time Off Requests" />
+    <title>Bright Harbor Time Off Requests</title>
+    <link rel="icon" href="/assets/bright-harbor-mark.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <a class="brand" href="#employee" aria-label="Bright Harbor Time Off Requests">
+          <img src="/assets/bright-harbor-mark.svg" alt="" />
+          <span>
+            <strong>Bright Harbor</strong>
+            <small>Time Off Requests</small>
+          </span>
+        </a>
+        <nav class="topnav" aria-label="Primary">
+          <a data-nav="employee" href="#employee">Employee</a>
+          <a data-nav="admin" href="#admin">Admin</a>
+        </nav>
+      </header>
+
+      <main>
+        <section id="employee-view" class="view employee-view" aria-labelledby="employee-heading">
+          <div class="intro-band">
+            <div>
+              <p class="eyebrow">Bright Harbor Time Off Requests</p>
+              <h1 id="employee-heading">Request time away with a clear trail.</h1>
+              <p class="lede">Submit planned leave, sick time, personal days, or unpaid time off for manager and admin review.</p>
+            </div>
+            <div class="mini-calendar" aria-hidden="true">
+              <div class="mini-calendar-head">
+                <span></span><span></span><span></span>
+              </div>
+              <div class="mini-calendar-grid">
+                <i></i><i></i><i class="active"></i><i></i><i></i><i></i><i></i>
+                <i></i><i class="soft"></i><i class="active"></i><i class="active"></i><i></i><i></i><i></i>
+                <i></i><i></i><i></i><i class="soft"></i><i></i><i class="active"></i><i></i>
+              </div>
+            </div>
+          </div>
+
+          <div class="employee-layout">
+            <form id="request-form" class="request-form" novalidate>
+              <div class="form-heading">
+                <h2>New Request</h2>
+                <p>Requests start as in review.</p>
+              </div>
+
+              <div class="field-grid two">
+                <label>
+                  <span>First name</span>
+                  <input name="firstName" autocomplete="given-name" required />
+                </label>
+                <label>
+                  <span>Last name</span>
+                  <input name="lastName" autocomplete="family-name" required />
+                </label>
+              </div>
+
+              <div class="field-grid two">
+                <label>
+                  <span>Email</span>
+                  <input name="email" type="email" autocomplete="email" required />
+                </label>
+                <label>
+                  <span>Department</span>
+                  <select name="department" required>
+                    <option value="">Select department</option>
+                    <option>Client Services</option>
+                    <option>Finance</option>
+                    <option>Harbor Operations</option>
+                    <option>Human Resources</option>
+                    <option>Sales</option>
+                    <option>Technology</option>
+                  </select>
+                </label>
+              </div>
+
+              <div class="field-grid two">
+                <label>
+                  <span>Manager</span>
+                  <input name="manager" autocomplete="off" required />
+                </label>
+                <label>
+                  <span>Time off type</span>
+                  <select name="timeOffType" required>
+                    <option value="">Select type</option>
+                    <option>Paid time off</option>
+                    <option>Sick time</option>
+                    <option>Personal day</option>
+                    <option>Unpaid time</option>
+                    <option>Bereavement</option>
+                  </select>
+                </label>
+              </div>
+
+              <div class="field-grid three">
+                <label>
+                  <span>Start date</span>
+                  <input name="startDate" type="date" required />
+                </label>
+                <label>
+                  <span>End date</span>
+                  <input name="endDate" type="date" required />
+                </label>
+                <label>
+                  <span>Day length</span>
+                  <select name="partialDay" required>
+                    <option>Full days</option>
+                    <option>Morning half day</option>
+                    <option>Afternoon half day</option>
+                  </select>
+                </label>
+              </div>
+
+              <label>
+                <span>Notes</span>
+                <textarea name="reason" rows="4" placeholder="Add context for your manager or admin."></textarea>
+              </label>
+
+              <div class="form-footer">
+                <output id="days-output">0 business days</output>
+                <button class="primary-button" type="submit">Submit request</button>
+              </div>
+
+              <p id="request-message" class="form-message" role="status" aria-live="polite"></p>
+            </form>
+
+            <aside class="side-panel" aria-labelledby="employee-sidebar-heading">
+              <h2 id="employee-sidebar-heading">Current Queue</h2>
+              <div class="stat-strip">
+                <span><strong id="queue-total">0</strong>Total</span>
+                <span><strong id="queue-review">0</strong>In review</span>
+                <span><strong id="queue-approved">0</strong>Approved</span>
+              </div>
+              <div id="employee-request-list" class="compact-list"></div>
+            </aside>
+          </div>
+        </section>
+
+        <section id="admin-view" class="view admin-view" aria-labelledby="admin-heading" hidden>
+          <div id="login-panel" class="login-layout">
+            <div>
+              <p class="eyebrow">Admin</p>
+              <h1 id="admin-heading">Review every request in one place.</h1>
+              <p class="lede">Admins can move requests between in review, denied, and approved, then notify employees by email.</p>
+            </div>
+            <form id="admin-login-form" class="login-form" novalidate>
+              <h2>Admin Login</h2>
+              <label>
+                <span>Email</span>
+                <input name="email" type="email" autocomplete="email" required />
+              </label>
+              <label>
+                <span>Password</span>
+                <input name="password" type="password" autocomplete="current-password" required />
+              </label>
+              <button class="primary-button" type="submit">Sign in</button>
+              <p id="login-message" class="form-message" role="status" aria-live="polite"></p>
+            </form>
+          </div>
+
+          <div id="admin-panel" class="admin-panel" hidden>
+            <div class="admin-header">
+              <div>
+                <p class="eyebrow">Admin Dashboard</p>
+                <h1>All Time Off Requests</h1>
+              </div>
+              <button id="logout-button" class="secondary-button" type="button">Sign out</button>
+            </div>
+
+            <div class="toolbar" aria-label="Admin controls">
+              <label>
+                <span>Find employee</span>
+                <input id="admin-search" type="search" placeholder="Search by name, email, or department" />
+              </label>
+              <label>
+                <span>View</span>
+                <select id="view-mode">
+                  <option value="list">List</option>
+                  <option value="calendar">Calendar</option>
+                </select>
+              </label>
+              <label id="calendar-mode-control" hidden>
+                <span>Calendar range</span>
+                <select id="calendar-mode">
+                  <option value="month">Month</option>
+                  <option value="week">Week</option>
+                  <option value="day">Day</option>
+                </select>
+              </label>
+              <label id="calendar-date-control" hidden>
+                <span>Focus date</span>
+                <input id="calendar-date" type="date" />
+              </label>
+            </div>
+
+            <div class="status-summary" aria-label="Request status summary">
+              <span><strong id="admin-total">0</strong>Total</span>
+              <span><strong id="admin-review">0</strong>In review</span>
+              <span><strong id="admin-approved">0</strong>Approved</span>
+              <span><strong id="admin-denied">0</strong>Denied</span>
+            </div>
+
+            <section id="list-view" class="list-view" aria-label="Alphabetical request list"></section>
+            <section id="calendar-view" class="calendar-view" aria-label="Calendar request view" hidden></section>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <script src="/app.js"></script>
+  </body>
+</html>
