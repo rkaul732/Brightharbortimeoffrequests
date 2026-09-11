@@ -287,6 +287,7 @@
               <div>
                 <p class="eyebrow">Admin Dashboard</p>
                 <h1 id="admin-title">Welcome</h1>
+                <p id="admin-role-line" class="role-line"></p>
               </div>
               <button id="logout-button" class="secondary-button" type="button">Sign out</button>
             </div>
@@ -311,6 +312,10 @@
                 <button class="hub-button" type="button" data-admin-page="reports">
                   <strong>Reports</strong>
                   <span data-hub-count="reports">3 downloads</span>
+                </button>
+                <button class="hub-button super-admin-only" type="button" data-admin-page="accounts" data-super-admin-only hidden>
+                  <strong>Account Types</strong>
+                  <span data-hub-count="accounts">Manage access</span>
                 </button>
               </div>
             </section>
@@ -368,6 +373,18 @@
                 </div>
               </div>
               <section id="reports-content" class="tab-content" aria-live="polite"></section>
+            </section>
+
+            <section id="admin-accounts-page" class="admin-page" hidden>
+              <div class="page-heading">
+                <button class="secondary-button" type="button" data-admin-page="home">Back</button>
+                <div>
+                  <p class="eyebrow">Super Admin</p>
+                  <h2>Account Types</h2>
+                </div>
+              </div>
+              <p id="accounts-message" class="form-message" role="status" aria-live="polite"></p>
+              <section id="accounts-content" class="tab-content" aria-live="polite"></section>
             </section>
           </div>
         </section>

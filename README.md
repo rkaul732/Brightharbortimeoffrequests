@@ -201,14 +201,14 @@ This creates the database tables where employee profiles, requests, and admin si
 
 You should see a success message.
 
-If you already ran an older version of this setup file, you can still run the current file again. It will add the employee profile table, the employee account link on requests, and any report columns without deleting existing requests.
+If you already ran an older version of this setup file, you can still run the current file again. It will add the employee profile table, the employee account link on requests, the account type field for super admin controls, and any report columns without deleting existing requests.
 
 To double-check:
 
 1. In the left sidebar, click **Table Editor**.
 2. Look for a table named `time_off_requests`.
 3. Open it. It should have columns such as `employee_user_id`, `first_name`, `last_name`, `email`, `department`, `program`, `start_date`, `end_date`, and `status`.
-4. Look for a table named `employee_profiles`. This stores each employee's name, pronouns, program, and manager.
+4. Look for a table named `employee_profiles`. This stores each employee's name, pronouns, program, manager, and account type.
 5. Also look for a table named `admin_sign_ins`. This stores admin sign-in times so the site can show requests submitted since the admin last signed on.
 
 It is okay if all three tables are empty.
@@ -217,27 +217,37 @@ It is okay if all three tables are empty.
 
 Employees do not need to be added manually in Supabase. Employees create their own accounts from the website with an email address ending in `@brightharbor.org`.
 
-Admins are different. Admins must exist in Supabase Authentication and must also be listed in the `ADMIN_EMAILS` environment variable.
+Admins are different. Admins must exist in Supabase Authentication and must either be marked as `admin` by the super admin inside the website or be listed in the `ADMIN_EMAILS` environment variable.
 
-Only emails listed in `ADMIN_EMAILS` will be allowed into the admin side.
+The super admin is the person who can change other employees from `employee` to `admin`.
+
+For this website, the super admin email is:
+
+```text
+hr@brightharbor.org
+```
+
+Set that user's password in Supabase Authentication. Use the temporary password you chose, but do not put that password in GitHub, Netlify environment variables, or any website file. Supabase should be the only place where the password is stored.
 
 1. In Supabase, open your project.
 2. In the left sidebar, click **Authentication**.
 3. Click **Users**.
 4. Click **Add user**.
-5. Choose **Send invitation**.
-6. Enter the admin's email address.
-7. Click **Invite user**.
-8. Ask the admin to open the invitation email and finish setting up their password.
+5. Choose **Create new user** or **Send invitation**.
+6. Enter `hr@brightharbor.org`.
+7. Set or invite the user to set the password.
+8. Repeat this for any first admins you want to create manually.
 
-Repeat this for every admin who should approve or deny time off requests.
+After the super admin signs into the live website, they can open **Account Types** and change registered employees from **Employee** to **Admin**.
 
-Write down the exact admin email addresses. You will need them for Netlify later.
+If you use `ADMIN_EMAILS`, write down the exact admin email addresses. You will need them for Netlify later.
+
+Important: anyone listed in `ADMIN_EMAILS` will still be allowed into the admin side. After the super admin page is working, you can leave `ADMIN_EMAILS` blank or remove regular admins from it and manage admins from **Account Types** instead.
 
 Example:
 
 ```text
-hr@brightharbor.org,manager@brightharbor.org
+manager@brightharbor.org
 ```
 
 ### Check Email Password Sign-In
@@ -380,6 +390,7 @@ SUPABASE_SECRET_KEY
 RESEND_API_KEY
 RESEND_FROM_EMAIL
 ADMIN_NOTIFY_EMAIL
+SUPER_ADMIN_EMAIL
 ADMIN_EMAILS
 ```
 
@@ -392,7 +403,8 @@ SUPABASE_SECRET_KEY=sb_secret_your_key_here
 RESEND_API_KEY=re_your_key_here
 RESEND_FROM_EMAIL=Bright Harbor Time Off <timeoff@brightharbor.org>
 ADMIN_NOTIFY_EMAIL=hr@brightharbor.org
-ADMIN_EMAILS=hr@brightharbor.org,manager@brightharbor.org
+SUPER_ADMIN_EMAIL=hr@brightharbor.org
+ADMIN_EMAILS=manager@brightharbor.org
 ```
 
 If your Supabase project only shows older key names, use these names instead:
@@ -588,7 +600,8 @@ npm run check
 | `RESEND_API_KEY` | Yes for email | Resend API keys | Lets the app send email notifications. |
 | `RESEND_FROM_EMAIL` | Yes for email | Your verified Resend domain | The sender shown on emails. |
 | `ADMIN_NOTIFY_EMAIL` | Yes for admin alerts | Your preferred inbox | Receives new-request notifications. |
-| `ADMIN_EMAILS` | Yes | Your admin list | Controls who can sign in to the admin dashboard. |
+| `SUPER_ADMIN_EMAIL` | Recommended | Your super admin email | Controls who can change employee/admin account types. Defaults to `hr@brightharbor.org` if left blank. |
+| `ADMIN_EMAILS` | Optional after super admin setup | Your starter admin list | Lets existing admins sign in before the super admin changes account types inside the site. |
 
 ## Troubleshooting
 
@@ -629,8 +642,8 @@ Check these items:
 
 - The admin user exists in Supabase Authentication.
 - The admin accepted the invitation and set a password.
-- The admin email is included in `ADMIN_EMAILS`.
-- The email in `ADMIN_EMAILS` has no accidental spaces or spelling differences.
+- The super admin is signing in with `hr@brightharbor.org`, or the admin was marked as `admin` on the **Account Types** page.
+- If you still use `ADMIN_EMAILS`, the email in `ADMIN_EMAILS` has no accidental spaces or spelling differences.
 - The site was redeployed after changing environment variables.
 
 ### Employee Account Creation Fails

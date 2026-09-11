@@ -1,5 +1,5 @@
 import { json, preflight } from "./_shared/http.mjs";
-import { hasSupabaseConfig } from "./_shared/supabase.mjs";
+import { hasAdminAccessConfig, hasSupabaseConfig } from "./_shared/supabase.mjs";
 
 export async function handler(event) {
   const options = preflight(event);
@@ -8,6 +8,6 @@ export async function handler(event) {
   return json(200, {
     backendReady: hasSupabaseConfig(),
     emailReady: Boolean(process.env.RESEND_API_KEY && process.env.RESEND_FROM_EMAIL),
-    adminEmailsConfigured: Boolean(process.env.ADMIN_EMAILS)
+    adminEmailsConfigured: hasAdminAccessConfig()
   });
 }

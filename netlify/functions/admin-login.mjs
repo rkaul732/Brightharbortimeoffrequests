@@ -1,5 +1,5 @@
 import { assertMethod, clean, handleError, httpError, isValidEmail, json, preflight, readJson } from "./_shared/http.mjs";
-import { isAdminEmail, passwordGrant, supabaseRest } from "./_shared/supabase.mjs";
+import { adminAccessForUser, passwordGrant, supabaseRest } from "./_shared/supabase.mjs";
 
 export async function handler(event) {
   const options = preflight(event);
@@ -16,10 +16,8 @@ export async function handler(event) {
     }
 
     const session = await passwordGrant(email, password);
-    const userEmail = session.user?.email?.toLowerCase();
-    if (!isAdminEmail(userEmail)) {
-      throw httpError(403, "This account is not an admin.");
-    }
+    const access = await adminAccessForUser(session.user || {});
+    const userEmail = access.email;
 
     const previousSignIns = await supabaseRest(`admin_sign_ins?admin_email=eq.${encodeURIComponent(userEmail)}&select=sign_in_at&order=sign_in_at.desc&limit=1`);
     const currentSignInAt = new Date().toISOString();
@@ -34,9 +32,12 @@ export async function handler(event) {
 
     return json(200, {
       email: userEmail,
-      name: displayName(session.user),
+      name: displayName(session.user, access.profile),
       accessToken: session.access_token,
       expiresIn: session.expires_in,
+      accountType: access.account_type,
+      role: access.role,
+      isSuperAdmin: access.is_super_admin,
       previousSignInAt: previousSignIns[0]?.sign_in_at || null,
       currentSignInAt: signInRows[0]?.sign_in_at || currentSignInAt
     });
@@ -45,7 +46,10 @@ export async function handler(event) {
   }
 }
 
-function displayName(user) {
+function displayName(user, profile = {}) {
+  const profileName = `${clean(profile?.first_name)} ${clean(profile?.last_name)}`.trim();
+  if (profileName) return profileName;
+
   const metadataName = clean(user?.user_metadata?.full_name || user?.user_metadata?.name);
   if (metadataName) return metadataName;
 

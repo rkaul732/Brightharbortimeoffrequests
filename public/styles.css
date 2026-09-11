@@ -637,6 +637,14 @@ output {
   margin-bottom: 0;
 }
 
+.role-line {
+  color: var(--ocean);
+  font-size: 0.82rem;
+  font-weight: 850;
+  margin: 6px 0 0;
+  text-transform: uppercase;
+}
+
 .admin-page {
   display: grid;
   gap: 18px;
@@ -649,7 +657,7 @@ output {
 .hub-actions {
   display: grid;
   gap: 14px;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
 }
 
 .hub-button {
@@ -775,14 +783,22 @@ output {
   gap: 10px;
 }
 
+.account-type-table {
+  display: grid;
+  gap: 10px;
+}
+
 .request-table-header,
-.request-line {
+.request-line,
+.account-type-header,
+.account-type-line {
   align-items: center;
   display: grid;
   gap: 12px;
   grid-template-columns: minmax(180px, 1.25fr) minmax(150px, 0.8fr) minmax(150px, 0.8fr) minmax(92px, 0.36fr) minmax(260px, 1.1fr);
 }
 
+.account-type-header,
 .request-table-header {
   background: rgba(238, 245, 251, 0.82);
   border: 1px solid var(--line);
@@ -794,7 +810,13 @@ output {
   text-transform: uppercase;
 }
 
-.request-line {
+.account-type-header,
+.account-type-line {
+  grid-template-columns: minmax(190px, 1.1fr) minmax(150px, 0.8fr) minmax(150px, 0.8fr) minmax(170px, 0.65fr) minmax(90px, 0.35fr);
+}
+
+.request-line,
+.account-type-line {
   background: #ffffff;
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -870,6 +892,7 @@ output {
   text-transform: uppercase;
 }
 
+.account-type-table .table-label,
 .request-table .table-label {
   display: none;
 }
@@ -976,6 +999,33 @@ output {
 .inline-decision input,
 .inline-decision select {
   min-height: 38px;
+}
+
+.account-type-control {
+  display: grid;
+  gap: 6px;
+}
+
+.account-type-control select {
+  min-height: 38px;
+}
+
+.account-type-pill {
+  background: var(--mist);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--ocean);
+  display: inline-flex;
+  font-size: 0.78rem;
+  font-weight: 900;
+  justify-self: start;
+  min-height: 34px;
+  padding: 8px 10px;
+}
+
+.account-type-pill.super_admin {
+  background: rgba(247, 245, 172, 0.85);
+  color: #655900;
 }
 
 .admin-request {
@@ -1238,15 +1288,18 @@ output {
     grid-template-columns: 1fr;
   }
 
+  .account-type-header,
   .request-table-header {
     display: none;
   }
 
+  .account-type-line,
   .request-line {
     align-items: stretch;
     grid-template-columns: 1fr 1fr;
   }
 
+  .account-type-table .table-label,
   .request-table .table-label {
     display: block;
   }

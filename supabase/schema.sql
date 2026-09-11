@@ -41,9 +41,11 @@ create table if not exists public.employee_profiles (
   pronouns text not null default '',
   program text not null default '',
   manager text not null default '',
+  account_type text not null default 'employee',
   created_at timestamptz not null default timezone('utc', now()),
   updated_at timestamptz not null default timezone('utc', now()),
   constraint employee_profiles_email_check check (right(lower(email), 17) = '@brightharbor.org'),
+  constraint employee_profiles_account_type_check check (account_type in ('employee', 'admin')),
   constraint employee_profiles_program_check check (
     program = ''
     or program in (
@@ -62,6 +64,15 @@ create table if not exists public.employee_profiles (
 );
 
 alter table public.employee_profiles enable row level security;
+
+alter table public.employee_profiles
+  add column if not exists account_type text not null default 'employee';
+
+alter table public.employee_profiles
+  drop constraint if exists employee_profiles_account_type_check;
+
+alter table public.employee_profiles
+  add constraint employee_profiles_account_type_check check (account_type in ('employee', 'admin'));
 
 create table if not exists public.admin_sign_ins (
   id uuid primary key default gen_random_uuid(),
@@ -88,6 +99,9 @@ create index if not exists time_off_requests_employee_user_idx
 
 create index if not exists employee_profiles_name_idx
   on public.employee_profiles (last_name, first_name);
+
+create index if not exists employee_profiles_account_type_idx
+  on public.employee_profiles (account_type);
 
 create index if not exists admin_sign_ins_email_date_idx
   on public.admin_sign_ins (admin_email, sign_in_at desc);

@@ -1,6 +1,8 @@
 import { clean, httpError, isAllowedProgram, isValidEmail, programLabel } from "./http.mjs";
 
 const brightHarborDomain = "@brightharbor.org";
+const defaultSuperAdminEmail = "hr@brightharbor.org";
+const accountTypes = new Set(["employee", "admin"]);
 
 function firstEnv(names) {
   return names.map((name) => process.env[name]).find(Boolean);
@@ -111,12 +113,36 @@ export async function verifyEmployee(event) {
 
 export async function verifyAdmin(event) {
   const user = await verifySupabaseUser(event, "Admin session is required.", "Admin session has expired.");
-  const email = user.email;
-  if (!isAdminEmail(email)) {
+  return adminAccessForUser(user);
+}
+
+export async function verifySuperAdmin(event) {
+  const admin = await verifyAdmin(event);
+  if (!admin.is_super_admin) {
+    throw httpError(403, "Only the super admin can change account types.");
+  }
+  return admin;
+}
+
+export async function adminAccessForUser(user) {
+  const email = clean(user.email).toLowerCase();
+  const profile = await readEmployeeProfile({ id: user.id, email });
+  const superAdmin = isSuperAdminEmail(email);
+  const envAdmin = isAdminEmail(email);
+  const profileAdmin = normalizeAccountType(profile?.account_type) === "admin";
+
+  if (!superAdmin && !envAdmin && !profileAdmin) {
     throw httpError(403, "This account is not an admin.");
   }
 
-  return user;
+  return {
+    ...user,
+    email,
+    profile,
+    account_type: superAdmin ? "super_admin" : "admin",
+    role: superAdmin ? "super_admin" : "admin",
+    is_super_admin: superAdmin
+  };
 }
 
 export function isAdminEmail(email) {
@@ -125,6 +151,28 @@ export function isAdminEmail(email) {
     .map((item) => item.trim().toLowerCase())
     .filter(Boolean);
   return allowed.includes(String(email || "").toLowerCase());
+}
+
+export function isSuperAdminEmail(email) {
+  const normalized = clean(email).toLowerCase();
+  return superAdminEmails().includes(normalized);
+}
+
+export function superAdminEmails() {
+  const configured = firstEnv(["SUPER_ADMIN_EMAILS", "SUPER_ADMIN_EMAIL"]) || defaultSuperAdminEmail;
+  return String(configured)
+    .split(",")
+    .map((item) => item.trim().toLowerCase())
+    .filter(Boolean);
+}
+
+export function hasAdminAccessConfig() {
+  return Boolean(process.env.ADMIN_EMAILS || superAdminEmails().length);
+}
+
+export function normalizeAccountType(value) {
+  const type = clean(value).toLowerCase();
+  return accountTypes.has(type) ? type : "employee";
 }
 
 export function isBrightHarborEmail(email) {
@@ -139,7 +187,7 @@ export function assertBrightHarborEmail(email) {
 }
 
 export function normalizeEmployeeProfile(user, profile = {}) {
-  return {
+  const normalized = {
     id: user.id,
     email: clean(user.email || profile.email).toLowerCase(),
     first_name: clean(profile.first_name || profile.firstName),
@@ -148,9 +196,14 @@ export function normalizeEmployeeProfile(user, profile = {}) {
     program: programLabel(profile.program),
     manager: clean(profile.manager)
   };
+  if (Object.prototype.hasOwnProperty.call(profile, "account_type") || Object.prototype.hasOwnProperty.call(profile, "accountType")) {
+    normalized.account_type = normalizeAccountType(profile.account_type || profile.accountType);
+  }
+  return normalized;
 }
 
 export async function readEmployeeProfile(user) {
+  if (!clean(user?.id)) return null;
   const rows = await supabaseRest(`employee_profiles?id=eq.${encodeURIComponent(user.id)}&select=*&limit=1`);
   return rows[0] || null;
 }

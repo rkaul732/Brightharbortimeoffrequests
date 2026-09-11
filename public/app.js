@@ -13,6 +13,7 @@
   const demoEmployeeProfilesKey = "bright-harbor-employee-profiles";
   const workWeekKey = "bright-harbor-work-week";
   const brightHarborDomain = "@brightharbor.org";
+  const superAdminEmail = "hr@brightharbor.org";
   const patternRequestThreshold = 3;
   const patternWindowDays = 42;
   const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
@@ -186,6 +187,7 @@
   const state = {
     requests: [],
     employeeLoadedRequests: [],
+    adminAccounts: [],
     admin: null,
     employee: null,
     demoMode: false,
@@ -233,10 +235,12 @@
     loginMessage: document.querySelector("#login-message"),
     logoutButton: document.querySelector("#logout-button"),
     adminTitle: document.querySelector("#admin-title"),
+    adminRoleLine: document.querySelector("#admin-role-line"),
     adminHomePage: document.querySelector("#admin-home-page"),
     adminRequestsPage: document.querySelector("#admin-requests-page"),
     adminSchedulePage: document.querySelector("#admin-schedule-page"),
     adminReportsPage: document.querySelector("#admin-reports-page"),
+    adminAccountsPage: document.querySelector("#admin-accounts-page"),
     adminSearch: document.querySelector("#admin-search"),
     adminNewCount: document.querySelector("#admin-new-count"),
     adminPendingCount: document.querySelector("#admin-pending-count"),
@@ -245,7 +249,9 @@
     requestTabContent: document.querySelector("#request-tab-content"),
     scheduleControls: document.querySelector("#schedule-controls"),
     scheduleTabContent: document.querySelector("#schedule-tab-content"),
-    reportsContent: document.querySelector("#reports-content")
+    reportsContent: document.querySelector("#reports-content"),
+    accountsContent: document.querySelector("#accounts-content"),
+    accountsMessage: document.querySelector("#accounts-message")
   };
 
   init();
@@ -328,6 +334,7 @@
 
     els.logoutButton.addEventListener("click", () => {
       state.admin = null;
+      state.adminAccounts = [];
       state.adminPage = "home";
       sessionStorage.removeItem(sessionKey);
       renderAdmin();
@@ -336,7 +343,20 @@
     els.adminPanel.addEventListener("click", async (event) => {
       const pageButton = event.target.closest("[data-admin-page]");
       if (pageButton) {
-        state.adminPage = pageButton.dataset.adminPage;
+        const nextPage = pageButton.dataset.adminPage;
+        if (nextPage === "accounts" && !isSuperAdmin()) {
+          setMessage(els.accountsMessage, "Only the super admin can manage account types.", "error");
+          return;
+        }
+        state.adminPage = nextPage;
+        if (nextPage === "accounts") {
+          try {
+            await loadAdminAccounts();
+            setMessage(els.accountsMessage, "", "");
+          } catch (error) {
+            setMessage(els.accountsMessage, error.message || "Could not load account types.", "error");
+          }
+        }
         renderAdmin();
         return;
       }
@@ -358,6 +378,12 @@
       const reportButton = event.target.closest("[data-download-report]");
       if (reportButton) {
         handleReportDownload(reportButton.dataset.downloadReport);
+        return;
+      }
+
+      const accountTypeButton = event.target.closest("[data-save-account-type]");
+      if (accountTypeButton) {
+        await handleAccountTypeSave(accountTypeButton);
         return;
       }
 
@@ -427,6 +453,13 @@
       if (state.admin) {
         try {
           await loadAdminRequests();
+          if (isSuperAdmin()) {
+            try {
+              await loadAdminAccounts();
+            } catch (error) {
+              setMessage(els.accountsMessage, error.message || "Could not load account types.", "error");
+            }
+          }
         } catch (error) {
           setMessage(els.loginMessage, error.message || "Please sign in again.", "error");
         }
@@ -753,14 +786,19 @@
     try {
       if (state.demoMode) {
         const currentSignInAt = new Date().toISOString();
+        const superAdmin = isSuperAdminEmail(email);
         state.admin = {
           email,
           name: deriveAdminName(email),
           token: "demo-token",
+          role: superAdmin ? "super_admin" : "admin",
+          accountType: superAdmin ? "super_admin" : "admin",
+          isSuperAdmin: superAdmin,
           previousSignInAt: readDemoLastSignIn(email),
           currentSignInAt
         };
         writeDemoLastSignIn(email, currentSignInAt);
+        if (superAdmin) state.adminAccounts = demoAdminAccounts();
       } else {
         const response = await fetch("/.netlify/functions/admin-login", {
           method: "POST",
@@ -775,10 +813,20 @@
           email: body.email,
           name: body.name || deriveAdminName(body.email),
           token: body.accessToken,
+          role: body.role || "admin",
+          accountType: body.accountType || "admin",
+          isSuperAdmin: Boolean(body.isSuperAdmin) || isSuperAdminEmail(body.email),
           previousSignInAt: body.previousSignInAt || null,
           currentSignInAt: body.currentSignInAt || new Date().toISOString()
         };
         await loadAdminRequests();
+        if (isSuperAdmin()) {
+          try {
+            await loadAdminAccounts();
+          } catch (error) {
+            setMessage(els.accountsMessage, error.message || "Could not load account types.", "error");
+          }
+        }
       }
       state.adminPage = "home";
       sessionStorage.setItem(sessionKey, JSON.stringify(state.admin));
@@ -803,6 +851,27 @@
       throw new Error(body.error || "Could not load admin requests.");
     }
     state.requests = (body.requests || []).map(normalizeRequest);
+  }
+
+  async function loadAdminAccounts() {
+    if (!state.admin || !isSuperAdmin()) {
+      state.adminAccounts = [];
+      return;
+    }
+
+    if (state.demoMode) {
+      state.adminAccounts = demoAdminAccounts();
+      return;
+    }
+
+    const response = await fetch("/.netlify/functions/admin-accounts", {
+      headers: { authorization: `Bearer ${state.admin.token}` }
+    });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(body.error || "Could not load account types.");
+    }
+    state.adminAccounts = sortAccounts((body.accounts || []).map(normalizeAccount));
   }
 
   async function updateStatus(id, status, decisionNote) {
@@ -834,6 +903,35 @@
     renderAll();
   }
 
+  async function updateAccountType(id, accountType) {
+    if (!["employee", "admin"].includes(accountType)) return;
+
+    if (state.demoMode) {
+      state.adminAccounts = sortAccounts(
+        state.adminAccounts.map((account) =>
+          account.id === id ? { ...account, account_type: accountType, updated_at: new Date().toISOString() } : account
+        )
+      );
+      renderAccountsPage();
+      return;
+    }
+
+    const response = await fetch("/.netlify/functions/admin-update-account", {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${state.admin.token}`,
+        "content-type": "application/json"
+      },
+      body: JSON.stringify({ id, account_type: accountType })
+    });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(body.error || "Could not update account type.");
+    }
+    state.adminAccounts = upsertAccount(normalizeAccount(body.account), state.adminAccounts);
+    renderAccountsPage();
+  }
+
   async function handleStatusSave(button) {
     const id = button.dataset.saveStatus;
     const wrapper = button.closest("[data-request-row]");
@@ -863,6 +961,26 @@
       button.disabled = false;
       button.textContent = originalText;
       alert(error.message || "Could not rescind this approval.");
+    }
+  }
+
+  async function handleAccountTypeSave(button) {
+    const id = button.dataset.saveAccountType;
+    const wrapper = button.closest("[data-account-row]");
+    const select = wrapper.querySelector("[data-account-type-select]");
+    const originalText = button.textContent;
+
+    button.disabled = true;
+    button.textContent = "Saving...";
+    setMessage(els.accountsMessage, "Saving account type...", "");
+    try {
+      await updateAccountType(id, select.value);
+      setMessage(els.accountsMessage, "Account type updated.", "success");
+    } catch (error) {
+      setMessage(els.accountsMessage, error.message || "Could not update account type.", "error");
+    } finally {
+      button.disabled = false;
+      button.textContent = originalText;
     }
   }
 
@@ -948,9 +1066,14 @@
       home: `Welcome, ${adminDisplayName()}!`,
       requests: "New Requests",
       schedule: "Team Schedule",
-      reports: "Reports"
+      reports: "Reports",
+      accounts: "Account Types"
     };
+    if (state.adminPage === "accounts" && !isSuperAdmin()) {
+      state.adminPage = "home";
+    }
     els.adminTitle.textContent = titles[state.adminPage] || titles.home;
+    els.adminRoleLine.textContent = isSuperAdmin() ? "Super Admin" : "Admin";
 
     showAdminPage(state.adminPage);
   }
@@ -960,7 +1083,8 @@
       home: els.adminHomePage,
       requests: els.adminRequestsPage,
       schedule: els.adminSchedulePage,
-      reports: els.adminReportsPage
+      reports: els.adminReportsPage,
+      accounts: els.adminAccountsPage
     };
 
     Object.entries(pages).forEach(([name, element]) => {
@@ -971,6 +1095,7 @@
     if (page === "requests") renderRequestsPage();
     if (page === "schedule") renderSchedulePage();
     if (page === "reports") renderReportsPage();
+    if (page === "accounts") renderAccountsPage();
   }
 
   function renderHomePage() {
@@ -984,6 +1109,11 @@
     setHubCount("requests", `${counts.in_review} waiting`);
     setHubCount("schedule", `${counts.approved} approved`);
     setHubCount("reports", `${reportTypes.length} downloads`);
+    setHubCount("accounts", `${state.adminAccounts.length || 0} accounts`);
+
+    els.adminHomePage.querySelectorAll("[data-super-admin-only]").forEach((element) => {
+      element.hidden = !isSuperAdmin();
+    });
   }
 
   function renderRequestsPage() {
@@ -1126,6 +1256,80 @@
       <div class="report-grid">
         ${reportTypes.map((report) => reportCard(report, range.valid)).join("")}
       </div>
+    `;
+  }
+
+  function renderAccountsPage() {
+    if (!isSuperAdmin()) {
+      els.accountsContent.innerHTML = `<div class="empty-state">Only the super admin can manage account types.</div>`;
+      return;
+    }
+
+    const accounts = sortAccounts(state.adminAccounts);
+    els.accountsContent.innerHTML = accounts.length
+      ? `
+        <div class="tab-heading">
+          <h3>Employee And Admin Accounts</h3>
+          <span class="meta-line">${accounts.length} ${accounts.length === 1 ? "account" : "accounts"}</span>
+        </div>
+        <div class="account-type-table">
+          ${accountTypeHeader()}
+          ${accounts.map(accountTypeLine).join("")}
+        </div>
+      `
+      : `<div class="empty-state">No employee accounts have been created yet.</div>`;
+  }
+
+  function accountTypeHeader() {
+    return `
+      <div class="account-type-header" aria-hidden="true">
+        <span>Person</span>
+        <span>Program</span>
+        <span>Manager</span>
+        <span>Account Type</span>
+        <span>Action</span>
+      </div>
+    `;
+  }
+
+  function accountTypeLine(account) {
+    const superAdmin = account.is_super_admin || isSuperAdminEmail(account.email);
+    return `
+      <article class="account-type-line" data-account-row="${escapeHtml(account.id)}">
+        <div class="request-line-main">
+          <strong>${escapeHtml(accountName(account))}</strong>
+          <small>${escapeHtml(account.email)}</small>
+        </div>
+        <div>
+          <span class="table-label">Program</span>
+          <span>${escapeHtml(account.program || "Unassigned")}</span>
+        </div>
+        <div>
+          <span class="table-label">Manager</span>
+          <span>${escapeHtml(account.manager || "Unassigned")}</span>
+        </div>
+        <div class="account-type-control">
+          <span class="table-label">Account Type</span>
+          ${
+            superAdmin
+              ? `<span class="account-type-pill super_admin">Super Admin</span>`
+              : `
+                <select aria-label="Account type for ${escapeHtml(accountName(account))}" data-account-type-select>
+                  <option value="employee" ${account.account_type === "employee" ? "selected" : ""}>Employee</option>
+                  <option value="admin" ${account.account_type === "admin" ? "selected" : ""}>Admin</option>
+                </select>
+              `
+          }
+        </div>
+        <div>
+          <span class="table-label">Action</span>
+          ${
+            superAdmin
+              ? `<span class="meta-line">Protected</span>`
+              : `<button class="status-save" type="button" data-save-account-type="${escapeHtml(account.id)}">Save</button>`
+          }
+        </div>
+      </article>
     `;
   }
 
@@ -1762,6 +1966,19 @@
     return name || state.employee?.email || "there";
   }
 
+  function accountName(account) {
+    const name = `${account.first_name || ""} ${account.last_name || ""}`.trim();
+    return name || account.email || "Unknown account";
+  }
+
+  function isSuperAdmin() {
+    return Boolean(state.admin?.isSuperAdmin || isSuperAdminEmail(state.admin?.email));
+  }
+
+  function isSuperAdminEmail(email) {
+    return clean(email).toLowerCase() === superAdminEmail;
+  }
+
   function missingProfileDetails(profile) {
     return !profile.first_name || !profile.last_name || !profile.program || !profile.manager;
   }
@@ -2021,7 +2238,16 @@
   function readSession() {
     try {
       const session = JSON.parse(sessionStorage.getItem(sessionKey) || "null");
-      return session && session.token ? session : null;
+      if (!session || !session.token) return null;
+      const email = clean(session.email).toLowerCase();
+      const superAdmin = Boolean(session.isSuperAdmin) || isSuperAdminEmail(email);
+      return {
+        ...session,
+        email,
+        role: superAdmin ? "super_admin" : session.role || "admin",
+        accountType: superAdmin ? "super_admin" : session.accountType || "admin",
+        isSuperAdmin: superAdmin
+      };
     } catch (error) {
       return null;
     }
@@ -2101,6 +2327,50 @@
     const profiles = readDemoEmployeeProfiles();
     profiles[profile.email] = normalizeProfile(profile);
     localStorage.setItem(demoEmployeeProfilesKey, JSON.stringify(profiles));
+  }
+
+  function demoAdminAccounts() {
+    const accounts = new Map();
+    const now = new Date().toISOString();
+
+    accounts.set(superAdminEmail, normalizeAccount({
+      id: "demo-super-admin",
+      email: superAdminEmail,
+      first_name: "HR",
+      last_name: "Admin",
+      program: "",
+      manager: "",
+      account_type: "super_admin",
+      is_super_admin: true,
+      created_at: now,
+      updated_at: now
+    }));
+
+    state.requests.forEach((request) => {
+      const email = clean(request.email).toLowerCase();
+      if (!email || accounts.has(email)) return;
+      accounts.set(email, normalizeAccount({
+        id: request.employee_user_id || `demo-${email}`,
+        email,
+        first_name: request.first_name,
+        last_name: request.last_name,
+        program: request.program,
+        manager: request.manager,
+        account_type: "employee",
+        created_at: request.created_at,
+        updated_at: request.updated_at
+      }));
+    });
+
+    Object.values(readDemoEmployeeProfiles()).forEach((profile) => {
+      const normalized = normalizeAccount({
+        ...profile,
+        account_type: accounts.get(profile.email)?.account_type || "employee"
+      });
+      if (normalized.email) accounts.set(normalized.email, normalized);
+    });
+
+    return sortAccounts(Array.from(accounts.values()));
   }
 
   function readDemoEmployeeProfiles() {
@@ -2192,6 +2462,40 @@
       program: programLabel(profile.program),
       manager: clean(profile.manager)
     };
+  }
+
+  function normalizeAccount(account = {}) {
+    const email = clean(account.email).toLowerCase();
+    const superAdmin = Boolean(account.is_super_admin || account.isSuperAdmin) || isSuperAdminEmail(email);
+    return {
+      id: String(account.id || ""),
+      email,
+      first_name: clean(account.first_name || account.firstName),
+      last_name: clean(account.last_name || account.lastName),
+      pronouns: clean(account.pronouns),
+      program: programLabel(account.program),
+      manager: clean(account.manager),
+      account_type: superAdmin ? "super_admin" : account.account_type === "admin" || account.accountType === "admin" ? "admin" : "employee",
+      is_super_admin: superAdmin,
+      created_at: account.created_at || account.createdAt || "",
+      updated_at: account.updated_at || account.updatedAt || ""
+    };
+  }
+
+  function sortAccounts(accounts) {
+    return [...accounts].sort((a, b) => {
+      const last = a.last_name.localeCompare(b.last_name);
+      if (last) return last;
+      const first = a.first_name.localeCompare(b.first_name);
+      if (first) return first;
+      return a.email.localeCompare(b.email);
+    });
+  }
+
+  function upsertAccount(account, accounts) {
+    const next = accounts.filter((item) => item.id !== account.id);
+    next.push(account);
+    return sortAccounts(next);
   }
 
   function setHubCount(area, text) {
