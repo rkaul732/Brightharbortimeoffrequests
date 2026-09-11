@@ -1,0 +1,13 @@
+{
+  "name": "bright-harbor-time-off-requests",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check": "node --check public/app.js && PYTHONPYCACHEPREFIX=.python-cache python3 -m py_compile scripts/serve.py && node --check netlify/functions/*.mjs && node --check netlify/functions/_shared/*.mjs",
+    "serve": "python3 scripts/serve.py"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

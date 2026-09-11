@@ -1,0 +1,6 @@
+.env
+.netlify
+.python-cache
+node_modules
+dist
+.DS_Store
