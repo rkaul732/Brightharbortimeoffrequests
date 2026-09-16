@@ -68,7 +68,11 @@ export async function passwordGrant(email, password, invalidMessage = "Invalid a
 
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
-    throw httpError(401, data?.msg || data?.error_description || invalidMessage);
+    const message = data?.msg || data?.error_description || data?.error || invalidMessage;
+    if (/invalid.*credentials/i.test(message) || /invalid.*login/i.test(message)) {
+      throw httpError(401, invalidMessage);
+    }
+    throw httpError(401, message);
   }
   return data;
 }

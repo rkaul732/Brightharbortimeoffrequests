@@ -15,7 +15,11 @@ export async function handler(event) {
       throw httpError(400, "Enter an admin email and password.");
     }
 
-    const session = await passwordGrant(email, password);
+    const session = await passwordGrant(
+      email,
+      password,
+      "Supabase rejected this email/password before admin access was checked. Confirm the user exists in Supabase Authentication, the email is confirmed, and the password was set in the same Supabase project connected to Netlify."
+    );
     const access = await adminAccessForUser(session.user || {});
     const userEmail = access.email;
 

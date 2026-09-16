@@ -40,6 +40,37 @@ This project uses four services:
 
 The website can run locally in demo mode without platform accounts, but real request storage, employee login, admin login, and emails need the platform setup below.
 
+## Share This Site With Other People
+
+Use this link when you want someone else to open the website from another computer:
+
+```text
+https://brightharbortimeoffrequests.netlify.app
+```
+
+Do not send a link that starts with `http://127.0.0.1`, `http://localhost`, or `file://`. Those links only work on your own computer.
+
+Before sending the Netlify link to reviewers, make sure these items are done:
+
+1. The newest project files have been pushed to GitHub.
+2. Netlify shows a successful deploy for the newest GitHub commit.
+3. Netlify has the Supabase environment variables saved.
+4. Netlify has the Resend environment variables saved if you want emails to send.
+5. Supabase has the current `supabase/schema.sql` file run in the SQL Editor.
+6. Supabase Authentication has a user for `hr@brightharbor.org`.
+7. The `hr@brightharbor.org` user has a password set in Supabase.
+
+The easiest way to confirm the site is ready is:
+
+1. Open the Netlify link in a private/incognito browser window.
+2. Create or sign into a test employee account with an email ending in `@brightharbor.org`.
+3. Submit a test request.
+4. Sign in on the admin side as `hr@brightharbor.org`.
+5. Confirm the request appears in **New Requests**.
+6. Ask one other person to open the same Netlify link from their own computer or phone.
+
+If the other person cannot open the site, check Netlify first. The site must show a successful deploy. If the site opens but login does not work, check Supabase and the Netlify environment variables.
+
 ## What You Need Before Starting
 
 Create accounts for:
@@ -420,18 +451,21 @@ Make sure the environment variables are available to **Functions**. On most Netl
 
 ## Step 10: Deploy The Site On Netlify
 
+This is the step that makes the website work on other people's computers.
+
 1. In Netlify, open your site.
 2. Go to **Deploys**.
 3. Click **Trigger deploy**.
 4. Choose **Deploy site**.
 5. Wait for the deploy to finish.
+6. Do not share the link until the deploy says **Published** or **Production: Published**.
 
 When the deploy succeeds, Netlify will give you a live URL.
 
-It may look like this:
+For this project, the live URL should be:
 
 ```text
-https://bright-harbor-time-off-requests.netlify.app
+https://brightharbortimeoffrequests.netlify.app
 ```
 
 Open that URL in your browser.
@@ -446,6 +480,8 @@ You can share the Netlify URL in two ways:
 - **Fully connected production link:** reviewers use real employee/admin accounts, requests are saved in Supabase, and emails send through Resend. This requires the Supabase and Resend environment variables in Netlify.
 
 For a review link that should behave like the final production site, finish Steps 3 through 9 before sharing the Netlify URL.
+
+If you just made changes on your computer, those changes are not visible to other people until you push them to GitHub and Netlify finishes a new successful deploy.
 
 ## Step 11: Test The Live Website
 
@@ -586,7 +622,29 @@ npm run check
 
 4. Commit the changes in GitHub Desktop or with Git.
 5. Push the changes to GitHub.
-6. Netlify will automatically build and deploy the new version.
+6. Open Netlify.
+7. Go to **Deploys**.
+8. Wait for the newest deploy to say **Published**.
+9. Open the live Netlify link:
+
+```text
+https://brightharbortimeoffrequests.netlify.app
+```
+
+10. After the live link shows the newest version, it is ready to send to other people.
+
+If Netlify says the deploy failed, open the failed deploy and read the deploy log. The site will keep showing the last successful version until the new deploy succeeds.
+
+If you are using Terminal instead of GitHub Desktop, use this:
+
+```bash
+cd "/Users/rebeccakaul/Documents/Time Off Requests"
+git add .
+git commit -m "Update Bright Harbor time off requests site"
+git push
+```
+
+After `git push` finishes, go to Netlify and wait for the deploy to publish.
 
 ## Environment Variable Reference
 
@@ -645,6 +703,24 @@ Check these items:
 - The super admin is signing in with `hr@brightharbor.org`, or the admin was marked as `admin` on the **Account Types** page.
 - If you still use `ADMIN_EMAILS`, the email in `ADMIN_EMAILS` has no accidental spaces or spelling differences.
 - The site was redeployed after changing environment variables.
+
+If the website says the admin credentials are invalid, Supabase rejected the email/password before the website checked whether the person is an admin.
+
+Use this checklist:
+
+1. In Netlify, open the site.
+2. Go to **Project configuration > Environment variables**.
+3. Copy the project reference from `SUPABASE_URL`. It is the part between `https://` and `.supabase.co`.
+4. Open Supabase and make sure you are in that exact project.
+5. Go to **Authentication > Users**.
+6. Open the user, such as `hr@brightharbor.org` or `mcorrigan@brightharbor.org`.
+7. Confirm the email is marked as confirmed.
+8. Set or reset the password in Supabase.
+9. Go to **Authentication > Providers > Email**.
+10. Confirm email/password sign-in is enabled.
+11. Try signing in again on the live Netlify link, not the `127.0.0.1` local preview link.
+
+If the employee side also rejects the same email/password, it is definitely a Supabase email/password problem. If the employee side signs in but the admin side says the account is not an admin, then the password is correct and the account still needs admin access.
 
 ### Employee Account Creation Fails
 
