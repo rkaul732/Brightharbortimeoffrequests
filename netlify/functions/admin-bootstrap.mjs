@@ -94,14 +94,26 @@ async function createAuthUser(email, password) {
 
 async function updateAuthUser(id, email, password) {
   if (!id) throw httpError(500, `Could not find the Supabase user id for ${email}.`);
+  const body = {
+    email,
+    password,
+    email_confirm: true,
+    user_metadata: metadataFor(email)
+  };
+
+  try {
+    const data = await supabaseAuthAdmin(`users/${encodeURIComponent(id)}`, {
+      method: "PUT",
+      body
+    });
+    return data.user || data;
+  } catch (error) {
+    if (!isInvalidSupabasePath(error)) throw error;
+  }
+
   const data = await supabaseAuthAdmin(`user/${encodeURIComponent(id)}`, {
     method: "PUT",
-    body: {
-      email,
-      password,
-      email_confirm: true,
-      user_metadata: metadataFor(email)
-    }
+    body
   });
   return data.user || data;
 }
@@ -128,7 +140,7 @@ async function upsertAdminProfile(user, email) {
 }
 
 async function supabaseAuthAdmin(path, options = {}) {
-  const supabaseUrl = requiredEnv("SUPABASE_URL").replace(/\/$/, "");
+  const supabaseUrl = supabaseBaseUrl(requiredEnv("SUPABASE_URL"));
   const serviceRoleKey = requiredAnyEnv(["SUPABASE_SECRET_KEY", "SUPABASE_SERVICE_ROLE_KEY"], "SUPABASE_SECRET_KEY");
   const response = await fetch(`${supabaseUrl}/auth/v1/admin/${path}`, {
     method: options.method || "GET",
@@ -142,9 +154,34 @@ async function supabaseAuthAdmin(path, options = {}) {
 
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
-    throw httpError(response.status, data?.msg || data?.message || data?.error_description || data?.error || "Supabase admin request failed.");
+    const message = data?.msg || data?.message || data?.error_description || data?.error || "Supabase admin request failed.";
+    throw httpError(response.status, `${message} (${safeRoute(path)})`);
   }
   return data;
+}
+
+function isInvalidSupabasePath(error) {
+  return /invalid path specified/i.test(error?.message || "");
+}
+
+function supabaseBaseUrl(value) {
+  const cleaned = clean(value);
+  try {
+    const url = new URL(cleaned);
+    url.pathname = "";
+    url.search = "";
+    url.hash = "";
+    return url.toString().replace(/\/$/, "");
+  } catch (error) {
+    return cleaned.replace(/\/(?:auth|rest|storage)\/v1.*$/i, "").replace(/\/$/, "");
+  }
+}
+
+function safeRoute(path) {
+  const route = String(path || "")
+    .replace(/\?.*$/, "")
+    .replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i, ":user_id");
+  return `/auth/v1/admin/${route}`;
 }
 
 function metadataFor(email) {
