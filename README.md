@@ -293,6 +293,48 @@ The employee account form uses email and password sign-in.
 
 Employees will set their own password on the website when they create an account. The website will stop the account creation if the email does not end in `@brightharbor.org`.
 
+### One-Time Admin Password Reset
+
+Use this only if Supabase Authentication shows the admin users but the live site still rejects the admin password.
+
+This creates or resets the admin users from the live Netlify site using the same Supabase project and secret key that the website uses.
+
+1. In Netlify, open the site.
+2. Go to **Project configuration > Environment variables**.
+3. Add these temporary variables:
+
+```text
+ADMIN_SETUP_TOKEN
+ADMIN_SETUP_PASSWORD
+ADMIN_SETUP_EMAILS
+```
+
+Use values like this:
+
+```text
+ADMIN_SETUP_TOKEN=make-up-a-temporary-random-phrase
+ADMIN_SETUP_PASSWORD=the-temporary-password-you-want-admins-to-use
+ADMIN_SETUP_EMAILS=hr@brightharbor.org,mcorrigan@brightharbor.org
+```
+
+4. Save the variables.
+5. Go to **Deploys**.
+6. Click **Trigger deploy**.
+7. Choose **Deploy site**.
+8. Wait until Netlify says **Published**.
+9. Run this in Terminal, replacing the token value with your `ADMIN_SETUP_TOKEN`:
+
+```bash
+curl -sS -X POST "https://brightharbortimeoffrequests.netlify.app/.netlify/functions/admin-bootstrap" \
+  -H "content-type: application/json" \
+  --data '{"setupToken":"make-up-a-temporary-random-phrase"}'
+```
+
+10. The response should say the admin users were created or reset.
+11. Try signing into the live admin page.
+12. After login works, delete `ADMIN_SETUP_TOKEN` and `ADMIN_SETUP_PASSWORD` from Netlify.
+13. Trigger one more deploy.
+
 ## Step 6: Copy Supabase Values For Netlify
 
 Netlify needs three Supabase values.
@@ -660,6 +702,9 @@ After `git push` finishes, go to Netlify and wait for the deploy to publish.
 | `ADMIN_NOTIFY_EMAIL` | Yes for admin alerts | Your preferred inbox | Receives new-request notifications. |
 | `SUPER_ADMIN_EMAIL` | Recommended | Your super admin email | Controls who can change employee/admin account types. Defaults to `hr@brightharbor.org` if left blank. |
 | `ADMIN_EMAILS` | Optional after super admin setup | Your starter admin list | Lets existing admins sign in before the super admin changes account types inside the site. |
+| `ADMIN_SETUP_TOKEN` | Temporary only | You make this up | Protects the one-time admin reset function. Delete after setup works. |
+| `ADMIN_SETUP_PASSWORD` | Temporary only | You choose this password | Lets the one-time reset function set admin passwords. Delete after setup works. |
+| `ADMIN_SETUP_EMAILS` | Temporary only | Admin email list | Emails to create or reset during the one-time admin setup. |
 
 ## Troubleshooting
 
