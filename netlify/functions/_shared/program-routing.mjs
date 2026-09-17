@@ -64,6 +64,18 @@ export const programRouting = [
     ]
   },
   {
+    program: "Human Resources",
+    supervisors: [person("Supervisor", "Kim Wolf", "kwolf@brightharbor.org")]
+  },
+  {
+    program: "Billing",
+    supervisors: [person("Supervisor", "Christina Stuhl", "cstuhl@brightharbor.org")]
+  },
+  {
+    program: "Finance",
+    supervisors: [person("Supervisor", "Tom Trageser", "ttrageser@brightharbor.org")]
+  },
+  {
     program: "LEAP (Arrive Together, On POINT, Barricaded Subjects)",
     supervisors: [
       person("Coordinator", "Kimberly Shalloo", "kshalloo@brightharbor.org"),
