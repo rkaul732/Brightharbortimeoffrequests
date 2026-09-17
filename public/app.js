@@ -19,7 +19,7 @@
   const patternWindowDays = 42;
   const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
   const programRouting = Array.isArray(window.BRIGHT_HARBOR_PROGRAM_ROUTING) ? window.BRIGHT_HARBOR_PROGRAM_ROUTING : [];
-  const programOptions = programRouting.map((entry) => entry.program);
+  const programOptions = programRouting.map((entry) => entry.program).sort((a, b) => a.localeCompare(b));
   const programValues = new Set(programOptions);
   const reportTypes = [
     {

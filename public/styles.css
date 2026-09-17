@@ -1403,11 +1403,14 @@ output {
 
 .program-check-row {
   align-items: flex-start;
+  font-size: 0.84rem;
+  font-weight: 500;
   min-height: 44px;
 }
 
 .program-check-row span {
   line-height: 1.25;
+  overflow-wrap: anywhere;
 }
 
 .report-card small {
