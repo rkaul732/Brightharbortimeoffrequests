@@ -94,7 +94,7 @@ async function createAuthUser(email, password) {
 
 async function updateAuthUser(id, email, password) {
   if (!id) throw httpError(500, `Could not find the Supabase user id for ${email}.`);
-  const data = await supabaseAuthAdmin(`users/${encodeURIComponent(id)}`, {
+  const data = await supabaseAuthAdmin(`user/${encodeURIComponent(id)}`, {
     method: "PUT",
     body: {
       email,
