@@ -198,6 +198,7 @@
     adminAccounts: [],
     adminMembers: [],
     memberAdmins: [],
+    memberEditId: "",
     admin: null,
     employee: null,
     demoMode: false,
@@ -392,6 +393,7 @@
       state.adminAccounts = [];
       state.adminMembers = [];
       state.memberAdmins = [];
+      state.memberEditId = "";
       state.adminPage = "home";
       sessionStorage.removeItem(sessionKey);
       closeAccountMenu();
@@ -450,6 +452,28 @@
       const accountTypeButton = event.target.closest("[data-save-account-type]");
       if (accountTypeButton) {
         await handleAccountTypeSave(accountTypeButton);
+        return;
+      }
+
+      const editMemberButton = event.target.closest("[data-edit-member]");
+      if (editMemberButton) {
+        state.memberEditId = editMemberButton.dataset.editMember;
+        setMessage(els.membersMessage, "", "");
+        renderMembersPage();
+        return;
+      }
+
+      const cancelMemberEditButton = event.target.closest("[data-cancel-member-edit]");
+      if (cancelMemberEditButton) {
+        state.memberEditId = "";
+        setMessage(els.membersMessage, "", "");
+        renderMembersPage();
+        return;
+      }
+
+      const saveMemberProfileButton = event.target.closest("[data-save-member-profile]");
+      if (saveMemberProfileButton) {
+        await handleMemberProfileSave(saveMemberProfileButton);
         return;
       }
 
@@ -1098,6 +1122,9 @@
       const members = demoAdminAccounts();
       state.adminMembers = members;
       state.memberAdmins = members.filter((member) => member.account_type === "admin" || member.account_type === "super_admin");
+      if (state.memberEditId && !state.adminMembers.some((member) => member.id === state.memberEditId)) {
+        state.memberEditId = "";
+      }
       return;
     }
 
@@ -1110,17 +1137,17 @@
     }
     state.adminMembers = sortAccounts((body.members || []).map(normalizeAccount));
     state.memberAdmins = sortAccounts(state.adminMembers.filter((member) => member.account_type === "admin" || member.account_type === "super_admin"));
+    if (state.memberEditId && !state.adminMembers.some((member) => member.id === state.memberEditId)) {
+      state.memberEditId = "";
+    }
   }
 
   async function updateMemberAdmin(id, assignedAdmin) {
     if (!id) return;
 
     if (state.demoMode) {
-      state.adminMembers = sortAccounts(
-        state.adminMembers.map((member) =>
-          member.id === id ? { ...member, manager: assignedAdmin, updated_at: new Date().toISOString() } : member
-        )
-      );
+      const existing = state.adminMembers.find((member) => member.id === id);
+      if (existing) applyMemberUpdate({ ...existing, manager: assignedAdmin, updated_at: new Date().toISOString() });
       renderMembersPage();
       return;
     }
@@ -1137,8 +1164,60 @@
     if (!response.ok) {
       throw new Error(body.error || "Could not update this member.");
     }
-    state.adminMembers = upsertAccount(normalizeAccount(body.member), state.adminMembers);
+    applyMemberUpdate(normalizeAccount(body.member));
     renderMembersPage();
+  }
+
+  async function updateMemberProfile(payload) {
+    if (!payload.id) return;
+
+    if (state.demoMode) {
+      const updated = normalizeAccount({
+        ...state.adminMembers.find((member) => member.id === payload.id),
+        first_name: payload.first_name,
+        last_name: payload.last_name,
+        pronouns: payload.pronouns,
+        program: payload.program,
+        manager: payload.assigned_admin,
+        updated_at: new Date().toISOString()
+      });
+      applyMemberUpdate(updated);
+      renderMembersPage();
+      return;
+    }
+
+    const response = await fetch("/.netlify/functions/admin-update-member", {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${state.admin.token}`,
+        "content-type": "application/json"
+      },
+      body: JSON.stringify(payload)
+    });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(body.error || "Could not update this member.");
+    }
+    applyMemberUpdate(normalizeAccount(body.member));
+    renderMembersPage();
+  }
+
+  function applyMemberUpdate(member) {
+    state.adminMembers = upsertAccount(member, state.adminMembers);
+    state.memberAdmins = sortAccounts(state.adminMembers.filter((account) => account.account_type === "admin" || account.account_type === "super_admin"));
+
+    if (state.admin && clean(state.admin.email).toLowerCase() === member.email) {
+      state.admin.profile = normalizeProfile(member, state.admin);
+      state.admin.name = profileDisplayName(state.admin.profile) || state.admin.name;
+      writeAdminSession();
+    }
+
+    if (state.employee && clean(state.employee.email).toLowerCase() === member.email) {
+      state.employee.profile = normalizeProfile(member, state.employee);
+      writeEmployeeSession(state.employee);
+    }
+
+    renderAccountMenu();
   }
 
   async function updateStatus(id, status, decisionNote) {
@@ -1265,6 +1344,44 @@
       setMessage(els.membersMessage, "Assigned admin updated.", "success");
     } catch (error) {
       setMessage(els.membersMessage, error.message || "Could not update assigned admin.", "error");
+    } finally {
+      button.disabled = false;
+      button.textContent = originalText;
+    }
+  }
+
+  async function handleMemberProfileSave(button) {
+    const id = button.dataset.saveMemberProfile;
+    const wrapper = button.closest("[data-member-edit-row]");
+    const originalText = button.textContent;
+    const payload = {
+      id,
+      first_name: clean(wrapper.querySelector('[name="firstName"]')?.value),
+      last_name: clean(wrapper.querySelector('[name="lastName"]')?.value),
+      pronouns: clean(wrapper.querySelector('[name="pronouns"]')?.value),
+      program: clean(wrapper.querySelector('[name="program"]')?.value),
+      assigned_admin: clean(wrapper.querySelector('[name="assignedAdmin"]')?.value)
+    };
+
+    if (!payload.first_name || !payload.last_name || !payload.program) {
+      setMessage(els.membersMessage, "Complete the member's first name, last name, and program.", "error");
+      return;
+    }
+    if (!isAllowedProgram(payload.program)) {
+      setMessage(els.membersMessage, "Choose a valid program.", "error");
+      return;
+    }
+
+    button.disabled = true;
+    button.textContent = "Saving...";
+    setMessage(els.membersMessage, "Saving member profile...", "");
+    try {
+      await updateMemberProfile(payload);
+      state.memberEditId = "";
+      renderMembersPage();
+      setMessage(els.membersMessage, "Member profile updated.", "success");
+    } catch (error) {
+      setMessage(els.membersMessage, error.message || "Could not update member profile.", "error");
     } finally {
       button.disabled = false;
       button.textContent = originalText;
@@ -1666,7 +1783,9 @@
       <article class="members-line" data-member-row="${escapeHtml(member.id)}">
         <div class="request-line-main">
           <span class="table-label">Account Name</span>
-          <strong>${escapeHtml(accountName(member))}</strong>
+          <button class="member-name-button" type="button" data-edit-member="${escapeHtml(member.id)}" aria-expanded="${state.memberEditId === member.id ? "true" : "false"}">
+            ${escapeHtml(accountName(member))}
+          </button>
           <small>${escapeHtml(member.program || "Unassigned")}</small>
         </div>
         <div>
@@ -1681,6 +1800,54 @@
           <button class="status-save" type="button" data-save-member-admin="${escapeHtml(member.id)}">Save</button>
         </div>
       </article>
+      ${state.memberEditId === member.id ? memberEditPanel(member, admins) : ""}
+    `;
+  }
+
+  function memberEditPanel(member, admins) {
+    return `
+      <section class="member-edit-panel" data-member-edit-row="${escapeHtml(member.id)}" aria-label="Edit ${escapeHtml(accountName(member))}">
+        <div class="member-edit-heading">
+          <div>
+            <h3>Edit ${escapeHtml(accountName(member))}</h3>
+            <span class="meta-line">${escapeHtml(member.email)}</span>
+          </div>
+          <button class="secondary-button" type="button" data-cancel-member-edit>Cancel</button>
+        </div>
+        <div class="field-grid three">
+          <label>
+            <span>First name</span>
+            <input name="firstName" value="${escapeHtml(member.first_name)}" autocomplete="off" required />
+          </label>
+          <label>
+            <span>Last name</span>
+            <input name="lastName" value="${escapeHtml(member.last_name)}" autocomplete="off" required />
+          </label>
+          <label>
+            <span>Pronouns</span>
+            <input name="pronouns" value="${escapeHtml(member.pronouns)}" autocomplete="off" />
+          </label>
+        </div>
+        <div class="field-grid two">
+          <label>
+            <span>Program</span>
+            <select name="program" required>
+              <option value="">Select program</option>
+              ${programOptions.map((program) => `<option value="${escapeHtml(program)}" ${member.program === program ? "selected" : ""}>${escapeHtml(program)}</option>`).join("")}
+            </select>
+          </label>
+          <label>
+            <span>Admin assigned</span>
+            <select name="assignedAdmin">
+              ${adminOptions(member, admins)}
+            </select>
+          </label>
+        </div>
+        <div class="form-footer">
+          <span class="meta-line">Changes update this member's account profile.</span>
+          <button class="status-save" type="button" data-save-member-profile="${escapeHtml(member.id)}">Save member</button>
+        </div>
+      </section>
     `;
   }
 

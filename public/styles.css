@@ -1122,6 +1122,46 @@ output {
   min-height: 38px;
 }
 
+.member-name-button {
+  background: transparent;
+  border: 0;
+  color: var(--deep);
+  font-weight: 900;
+  justify-self: start;
+  padding: 0;
+  text-align: left;
+  text-decoration: underline;
+  text-decoration-color: rgba(75, 160, 216, 0.5);
+  text-underline-offset: 3px;
+}
+
+.member-name-button:hover,
+.member-name-button[aria-expanded="true"] {
+  color: var(--ocean);
+  text-decoration-color: var(--ocean);
+}
+
+.member-edit-panel {
+  background: rgba(238, 245, 251, 0.64);
+  border: 1px solid rgba(52, 105, 144, 0.2);
+  border-left: 4px solid var(--sea);
+  border-radius: 8px;
+  display: grid;
+  gap: 16px;
+  padding: 16px;
+}
+
+.member-edit-heading {
+  align-items: center;
+  display: flex;
+  gap: 14px;
+  justify-content: space-between;
+}
+
+.member-edit-heading h3 {
+  margin: 0 0 4px;
+}
+
 .account-type-pill {
   background: var(--mist);
   border: 1px solid var(--line);
@@ -1535,7 +1575,8 @@ output {
 
   .page-heading,
   .tab-heading,
-  .approval-date-row {
+  .approval-date-row,
+  .member-edit-heading {
     align-items: stretch;
     flex-direction: column;
   }

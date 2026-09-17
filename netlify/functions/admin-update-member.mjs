@@ -1,4 +1,4 @@
-import { assertMethod, clean, handleError, httpError, json, preflight, readJson } from "./_shared/http.mjs";
+import { assertAllowedProgram, assertMethod, clean, handleError, httpError, json, preflight, readJson } from "./_shared/http.mjs";
 import { isSuperAdminEmail, normalizeAccountType, supabaseRest, verifyAdmin } from "./_shared/supabase.mjs";
 
 export async function handler(event) {
@@ -12,6 +12,7 @@ export async function handler(event) {
     const body = await readJson(event);
     const id = clean(body.id);
     const assignedAdmin = clean(body.assigned_admin || body.assignedAdmin || body.manager);
+    const updates = memberUpdates(body);
 
     if (!id) throw httpError(400, "Member id is required.");
     if (assignedAdmin) await assertReviewerExists(assignedAdmin);
@@ -19,9 +20,7 @@ export async function handler(event) {
     const rows = await supabaseRest(`employee_profiles?id=eq.${encodeURIComponent(id)}&select=*`, {
       method: "PATCH",
       prefer: "return=representation",
-      body: {
-        manager: assignedAdmin
-      }
+      body: updates
     });
 
     if (!rows.length) throw httpError(404, "Member was not found.");
@@ -29,6 +28,38 @@ export async function handler(event) {
   } catch (error) {
     return handleError(error);
   }
+}
+
+function memberUpdates(body) {
+  const updates = {
+    manager: clean(body.assigned_admin || body.assignedAdmin || body.manager)
+  };
+
+  if (Object.prototype.hasOwnProperty.call(body, "first_name") || Object.prototype.hasOwnProperty.call(body, "firstName")) {
+    updates.first_name = clean(body.first_name || body.firstName);
+  }
+  if (Object.prototype.hasOwnProperty.call(body, "last_name") || Object.prototype.hasOwnProperty.call(body, "lastName")) {
+    updates.last_name = clean(body.last_name || body.lastName);
+  }
+  if (Object.prototype.hasOwnProperty.call(body, "pronouns")) {
+    updates.pronouns = clean(body.pronouns);
+  }
+  if (Object.prototype.hasOwnProperty.call(body, "program")) {
+    updates.program = clean(body.program);
+  }
+
+  if (!updates.first_name && Object.prototype.hasOwnProperty.call(updates, "first_name")) {
+    throw httpError(400, "First name is required.");
+  }
+  if (!updates.last_name && Object.prototype.hasOwnProperty.call(updates, "last_name")) {
+    throw httpError(400, "Last name is required.");
+  }
+  if (Object.prototype.hasOwnProperty.call(updates, "program")) {
+    if (!updates.program) throw httpError(400, "Program is required.");
+    assertAllowedProgram(updates.program);
+  }
+
+  return updates;
 }
 
 async function assertReviewerExists(assignedAdmin) {
