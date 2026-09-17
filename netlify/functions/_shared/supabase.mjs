@@ -25,7 +25,7 @@ export function hasSupabaseConfig() {
 }
 
 export function supabaseProjectRef() {
-  const supabaseUrl = clean(process.env.SUPABASE_URL).replace(/\/$/, "");
+  const supabaseUrl = supabaseBaseUrl(clean(process.env.SUPABASE_URL));
   if (!supabaseUrl) return "";
   try {
     return new URL(supabaseUrl).hostname.split(".")[0] || "";
@@ -35,7 +35,7 @@ export function supabaseProjectRef() {
 }
 
 export async function supabaseRest(path, options = {}) {
-  const supabaseUrl = requiredAny(["SUPABASE_URL"], "SUPABASE_URL").replace(/\/$/, "");
+  const supabaseUrl = supabaseBaseUrl(requiredAny(["SUPABASE_URL"], "SUPABASE_URL"));
   const serviceRoleKey = requiredAny(["SUPABASE_SECRET_KEY", "SUPABASE_SERVICE_ROLE_KEY"], "SUPABASE_SECRET_KEY");
   const url = `${supabaseUrl}/rest/v1/${path}`;
   const headers = {
@@ -65,7 +65,7 @@ export async function supabaseRest(path, options = {}) {
 }
 
 export async function passwordGrant(email, password, invalidMessage = "Invalid admin credentials.") {
-  const supabaseUrl = requiredAny(["SUPABASE_URL"], "SUPABASE_URL").replace(/\/$/, "");
+  const supabaseUrl = supabaseBaseUrl(requiredAny(["SUPABASE_URL"], "SUPABASE_URL"));
   const publishableKey = requiredAny(["SUPABASE_PUBLISHABLE_KEY", "SUPABASE_ANON_KEY"], "SUPABASE_PUBLISHABLE_KEY");
   const response = await fetch(`${supabaseUrl}/auth/v1/token?grant_type=password`, {
     method: "POST",
@@ -88,7 +88,7 @@ export async function passwordGrant(email, password, invalidMessage = "Invalid a
 }
 
 export async function createAuthUser(email, password, metadata = {}) {
-  const supabaseUrl = requiredAny(["SUPABASE_URL"], "SUPABASE_URL").replace(/\/$/, "");
+  const supabaseUrl = supabaseBaseUrl(requiredAny(["SUPABASE_URL"], "SUPABASE_URL"));
   const serviceRoleKey = requiredAny(["SUPABASE_SECRET_KEY", "SUPABASE_SERVICE_ROLE_KEY"], "SUPABASE_SECRET_KEY");
   const response = await fetch(`${supabaseUrl}/auth/v1/admin/users`, {
     method: "POST",
@@ -115,6 +115,19 @@ export async function createAuthUser(email, password, metadata = {}) {
   }
 
   return data;
+}
+
+export function supabaseBaseUrl(value) {
+  const cleaned = clean(value);
+  try {
+    const url = new URL(cleaned);
+    url.pathname = "";
+    url.search = "";
+    url.hash = "";
+    return url.toString().replace(/\/$/, "");
+  } catch (error) {
+    return cleaned.replace(/\/(?:auth|rest|storage)\/v1.*$/i, "").replace(/\/$/, "");
+  }
 }
 
 export async function verifyEmployee(event) {
@@ -245,7 +258,7 @@ async function verifySupabaseUser(event, missingMessage, expiredMessage) {
     throw httpError(401, missingMessage);
   }
 
-  const supabaseUrl = requiredAny(["SUPABASE_URL"], "SUPABASE_URL").replace(/\/$/, "");
+  const supabaseUrl = supabaseBaseUrl(requiredAny(["SUPABASE_URL"], "SUPABASE_URL"));
   const publishableKey = requiredAny(["SUPABASE_PUBLISHABLE_KEY", "SUPABASE_ANON_KEY"], "SUPABASE_PUBLISHABLE_KEY");
   const response = await fetch(`${supabaseUrl}/auth/v1/user`, {
     headers: {

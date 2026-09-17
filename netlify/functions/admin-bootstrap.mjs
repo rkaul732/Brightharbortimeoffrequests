@@ -1,5 +1,5 @@
 import { assertMethod, clean, httpError, json, preflight, readJson } from "./_shared/http.mjs";
-import { assertBrightHarborEmail, supabaseRest } from "./_shared/supabase.mjs";
+import { assertBrightHarborEmail, supabaseBaseUrl, supabaseRest } from "./_shared/supabase.mjs";
 
 const defaultAdminEmails = ["hr@brightharbor.org", "mcorrigan@brightharbor.org"];
 
@@ -162,19 +162,6 @@ async function supabaseAuthAdmin(path, options = {}) {
 
 function isInvalidSupabasePath(error) {
   return /invalid path specified/i.test(error?.message || "");
-}
-
-function supabaseBaseUrl(value) {
-  const cleaned = clean(value);
-  try {
-    const url = new URL(cleaned);
-    url.pathname = "";
-    url.search = "";
-    url.hash = "";
-    return url.toString().replace(/\/$/, "");
-  } catch (error) {
-    return cleaned.replace(/\/(?:auth|rest|storage)\/v1.*$/i, "").replace(/\/$/, "");
-  }
 }
 
 function safeRoute(path) {
