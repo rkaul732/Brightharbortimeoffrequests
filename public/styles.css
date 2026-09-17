@@ -121,6 +121,96 @@ button {
   color: var(--deep);
 }
 
+.topbar-actions {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+}
+
+.account-menu {
+  position: relative;
+}
+
+.avatar-button {
+  align-items: center;
+  background: var(--deep);
+  border: 2px solid #ffffff;
+  border-radius: 999px;
+  box-shadow: 0 3px 10px rgba(28, 47, 67, 0.18);
+  color: #ffffff;
+  display: inline-flex;
+  font-size: 0.84rem;
+  font-weight: 900;
+  height: 42px;
+  justify-content: center;
+  padding: 0;
+  width: 42px;
+}
+
+.avatar-button:hover,
+.avatar-button[aria-expanded="true"] {
+  background: var(--ocean);
+}
+
+.account-dropdown {
+  background: #ffffff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: 0 18px 48px rgba(28, 47, 67, 0.16);
+  display: grid;
+  gap: 6px;
+  min-width: 240px;
+  padding: 10px;
+  position: absolute;
+  right: 0;
+  top: calc(100% + 10px);
+  z-index: 60;
+}
+
+.account-menu-person {
+  border-bottom: 1px solid var(--line);
+  display: grid;
+  gap: 3px;
+  margin-bottom: 4px;
+  padding: 4px 4px 10px;
+}
+
+.account-menu-person strong,
+.account-menu-person small {
+  overflow-wrap: anywhere;
+}
+
+.account-menu-person small {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.account-menu-item {
+  background: transparent;
+  border: 0;
+  border-radius: 7px;
+  color: var(--deep);
+  font-weight: 800;
+  min-height: 38px;
+  padding: 9px 10px;
+  text-align: left;
+  width: 100%;
+}
+
+.account-menu-item:hover,
+.account-menu-item[aria-expanded="true"] {
+  background: var(--mist);
+}
+
+.account-settings-submenu {
+  border-left: 3px solid var(--sea);
+  display: grid;
+  gap: 4px;
+  margin-left: 8px;
+  padding-left: 8px;
+}
+
 main {
   padding: 28px clamp(18px, 4vw, 48px) 48px;
 }
@@ -778,12 +868,9 @@ output {
   gap: 12px;
 }
 
-.request-table {
-  display: grid;
-  gap: 10px;
-}
-
-.account-type-table {
+.request-table,
+.account-type-table,
+.members-table {
   display: grid;
   gap: 10px;
 }
@@ -791,7 +878,9 @@ output {
 .request-table-header,
 .request-line,
 .account-type-header,
-.account-type-line {
+.account-type-line,
+.members-header,
+.members-line {
   align-items: center;
   display: grid;
   gap: 12px;
@@ -799,7 +888,8 @@ output {
 }
 
 .account-type-header,
-.request-table-header {
+.request-table-header,
+.members-header {
   background: rgba(238, 245, 251, 0.82);
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -815,8 +905,14 @@ output {
   grid-template-columns: minmax(190px, 1.1fr) minmax(150px, 0.8fr) minmax(150px, 0.8fr) minmax(170px, 0.65fr) minmax(90px, 0.35fr);
 }
 
+.members-header,
+.members-line {
+  grid-template-columns: minmax(210px, 1.05fr) minmax(210px, 1fr) minmax(280px, 1.15fr);
+}
+
 .request-line,
-.account-type-line {
+.account-type-line,
+.members-line {
   background: #ffffff;
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -893,7 +989,8 @@ output {
 }
 
 .account-type-table .table-label,
-.request-table .table-label {
+.request-table .table-label,
+.members-table .table-label {
   display: none;
 }
 
@@ -1007,6 +1104,21 @@ output {
 }
 
 .account-type-control select {
+  min-height: 38px;
+}
+
+.member-admin-control {
+  align-items: center;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: minmax(160px, 1fr) auto;
+}
+
+.member-admin-control .table-label {
+  grid-column: 1 / -1;
+}
+
+.member-admin-control select {
   min-height: 38px;
 }
 
@@ -1175,6 +1287,40 @@ output {
   min-height: 154px;
 }
 
+.settings-form {
+  background: #ffffff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: 0 10px 28px rgba(28, 47, 67, 0.06);
+  display: grid;
+  gap: 18px;
+  padding: 22px;
+}
+
+.settings-option-list {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.check-row {
+  align-items: center;
+  background: rgba(238, 245, 251, 0.72);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--deep);
+  display: flex;
+  font-size: 0.92rem;
+  gap: 10px;
+  min-height: 48px;
+  padding: 10px 12px;
+}
+
+.check-row input {
+  min-height: auto;
+  width: auto;
+}
+
 .report-card small {
   margin-top: 5px;
 }
@@ -1289,23 +1435,27 @@ output {
   }
 
   .account-type-header,
-  .request-table-header {
+  .request-table-header,
+  .members-header {
     display: none;
   }
 
   .account-type-line,
-  .request-line {
+  .request-line,
+  .members-line {
     align-items: stretch;
     grid-template-columns: 1fr 1fr;
   }
 
   .account-type-table .table-label,
-  .request-table .table-label {
+  .request-table .table-label,
+  .members-table .table-label {
     display: block;
   }
 
   .request-line-main,
-  .inline-decision {
+  .inline-decision,
+  .member-admin-control {
     grid-column: 1 / -1;
   }
 
@@ -1320,13 +1470,24 @@ output {
     flex-direction: column;
   }
 
-  .topnav {
+  .topbar-actions {
+    align-items: center;
     width: 100%;
+  }
+
+  .topnav {
+    flex: 1;
+    min-width: 0;
+    width: auto;
   }
 
   .topnav a {
     flex: 1;
     text-align: center;
+  }
+
+  .account-dropdown {
+    right: 0;
   }
 
   main {

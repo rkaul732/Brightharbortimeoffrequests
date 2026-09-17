@@ -1,7 +1,7 @@
 import { assertMethod, clean, httpError, json, preflight, readJson } from "./_shared/http.mjs";
 import { assertBrightHarborEmail, supabaseBaseUrl, supabaseRest } from "./_shared/supabase.mjs";
 
-const defaultAdminEmails = ["hr@brightharbor.org", "mcorrigan@brightharbor.org"];
+const defaultAdminEmails = ["hr@brightharbor.org", "mcorrigan@brightharbor.org", "kshalloo@brightharbor.org"];
 
 export async function handler(event) {
   const options = preflight(event);
@@ -67,7 +67,7 @@ function requireSetupToken(inputToken) {
 
 function setupEmails() {
   const configured = clean(process.env.ADMIN_SETUP_EMAILS);
-  const emails = (configured ? configured.split(",") : defaultAdminEmails)
+  const emails = [...defaultAdminEmails, ...(configured ? configured.split(",") : [])]
     .map((email) => clean(email).toLowerCase())
     .filter(Boolean);
   emails.forEach(assertBrightHarborEmail);
@@ -184,7 +184,8 @@ function metadataFor(email) {
 function profileName(email) {
   const names = {
     "hr@brightharbor.org": { first: "HR", last: "Admin" },
-    "mcorrigan@brightharbor.org": { first: "Meghan", last: "Corrigan" }
+    "mcorrigan@brightharbor.org": { first: "Meghan", last: "Corrigan" },
+    "kshalloo@brightharbor.org": { first: "K", last: "Shalloo" }
   };
   if (names[email]) return names[email];
 

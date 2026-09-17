@@ -18,10 +18,29 @@
             <small>Time Off Requests</small>
           </span>
         </a>
-        <nav class="topnav" aria-label="Primary">
-          <a data-nav="employee" href="#employee">Employee</a>
-          <a data-nav="admin" href="#admin">Admin</a>
-        </nav>
+        <div class="topbar-actions">
+          <nav class="topnav" aria-label="Primary">
+            <a data-nav="employee" href="#employee">Employee</a>
+            <a data-nav="admin" href="#admin">Admin</a>
+          </nav>
+          <div id="account-menu" class="account-menu" hidden>
+            <button id="account-menu-button" class="avatar-button" type="button" aria-haspopup="true" aria-expanded="false" aria-label="Account menu">
+              <span id="account-initials">BH</span>
+            </button>
+            <div id="account-dropdown" class="account-dropdown" hidden>
+              <div class="account-menu-person">
+                <strong id="account-menu-name">Bright Harbor</strong>
+                <small id="account-menu-email"></small>
+              </div>
+              <button class="account-menu-item" type="button" data-account-action="settings" aria-expanded="false">Settings</button>
+              <div id="account-settings-submenu" class="account-settings-submenu" hidden>
+                <button class="account-menu-item" type="button" data-settings-target="members">Members</button>
+                <button class="account-menu-item" type="button" data-settings-target="myself">Myself</button>
+                <button class="account-menu-item" type="button" data-settings-target="site_settings">Site Settings</button>
+              </div>
+            </div>
+          </div>
+        </div>
       </header>
 
       <main>
@@ -129,7 +148,7 @@
                 <p id="employee-email-line" class="meta-line"></p>
               </div>
               <div class="employee-actions">
-                <button id="employee-settings-button" class="secondary-button" type="button">Settings</button>
+                <button id="employee-settings-button" class="secondary-button" type="button">Myself</button>
                 <button id="employee-signout-button" class="secondary-button" type="button">Sign out</button>
               </div>
             </div>
@@ -293,7 +312,7 @@
             </div>
 
             <section id="admin-home-page" class="admin-page hub-page">
-              <div class="status-summary" aria-label="Request status summary">
+              <div class="status-summary" aria-label="Request status summary" data-landing-feature="statusSummary">
                 <span><strong id="admin-new-count">0</strong>New since sign on</span>
                 <span><strong id="admin-pending-count">0</strong>Still pending</span>
                 <span><strong id="admin-approved-count">0</strong>Approved</span>
@@ -301,19 +320,19 @@
               </div>
 
               <div class="hub-actions" aria-label="Admin areas">
-                <button class="hub-button" type="button" data-admin-page="requests">
+                <button class="hub-button" type="button" data-admin-page="requests" data-landing-feature="newRequests">
                   <strong>New Requests</strong>
                   <span data-hub-count="requests">0 waiting</span>
                 </button>
-                <button class="hub-button" type="button" data-admin-page="schedule">
+                <button class="hub-button" type="button" data-admin-page="schedule" data-landing-feature="teamSchedule">
                   <strong>Team Schedule</strong>
                   <span data-hub-count="schedule">0 approved</span>
                 </button>
-                <button class="hub-button" type="button" data-admin-page="reports">
+                <button class="hub-button" type="button" data-admin-page="reports" data-landing-feature="reports">
                   <strong>Reports</strong>
                   <span data-hub-count="reports">3 downloads</span>
                 </button>
-                <button class="hub-button super-admin-only" type="button" data-admin-page="accounts" data-super-admin-only hidden>
+                <button class="hub-button super-admin-only" type="button" data-admin-page="accounts" data-super-admin-only data-landing-feature="accountTypes" hidden>
                   <strong>Account Types</strong>
                   <span data-hub-count="accounts">Manage access</span>
                 </button>
@@ -385,6 +404,108 @@
               </div>
               <p id="accounts-message" class="form-message" role="status" aria-live="polite"></p>
               <section id="accounts-content" class="tab-content" aria-live="polite"></section>
+            </section>
+
+            <section id="admin-members-page" class="admin-page" hidden>
+              <div class="page-heading">
+                <button class="secondary-button" type="button" data-admin-page="home">Back</button>
+                <div>
+                  <p class="eyebrow">Settings</p>
+                  <h2>Members</h2>
+                </div>
+              </div>
+              <p id="members-message" class="form-message" role="status" aria-live="polite"></p>
+              <section id="members-content" class="tab-content" aria-live="polite"></section>
+            </section>
+
+            <section id="admin-myself-page" class="admin-page" hidden>
+              <div class="page-heading">
+                <button class="secondary-button" type="button" data-admin-page="home">Back</button>
+                <div>
+                  <p class="eyebrow">Settings</p>
+                  <h2>Myself</h2>
+                </div>
+              </div>
+              <form id="admin-profile-form" class="profile-form settings-form" novalidate>
+                <div class="field-grid three">
+                  <label>
+                    <span>First name</span>
+                    <input name="firstName" autocomplete="given-name" required />
+                  </label>
+                  <label>
+                    <span>Last name</span>
+                    <input name="lastName" autocomplete="family-name" required />
+                  </label>
+                  <label>
+                    <span>Pronouns</span>
+                    <input name="pronouns" autocomplete="off" />
+                  </label>
+                </div>
+                <div class="field-grid two">
+                  <label>
+                    <span>Program</span>
+                    <select name="program" required>
+                      <option value="">Select program</option>
+                      <option>Access</option>
+                      <option>ISC</option>
+                      <option>Outpatient</option>
+                      <option>Front Desk Professionals</option>
+                      <option>SOS</option>
+                      <option>Shore Haven</option>
+                      <option>Recovery</option>
+                      <option>Nursing Case Management</option>
+                      <option>On Point/Arrive Together</option>
+                      <option>ICM Blue</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span>Manager</span>
+                    <input name="manager" autocomplete="off" required />
+                  </label>
+                </div>
+                <div class="form-footer">
+                  <p id="admin-profile-message" class="form-message" role="status" aria-live="polite"></p>
+                  <button class="secondary-button" type="submit">Save profile</button>
+                </div>
+              </form>
+            </section>
+
+            <section id="admin-site-settings-page" class="admin-page" hidden>
+              <div class="page-heading">
+                <button class="secondary-button" type="button" data-admin-page="home">Back</button>
+                <div>
+                  <p class="eyebrow">Settings</p>
+                  <h2>Site Settings</h2>
+                </div>
+              </div>
+              <form id="admin-site-settings-form" class="settings-form" novalidate>
+                <div class="settings-option-list" aria-label="Landing page options">
+                  <label class="check-row">
+                    <input type="checkbox" name="statusSummary" />
+                    <span>Status summary</span>
+                  </label>
+                  <label class="check-row">
+                    <input type="checkbox" name="newRequests" />
+                    <span>New Requests button</span>
+                  </label>
+                  <label class="check-row">
+                    <input type="checkbox" name="teamSchedule" />
+                    <span>Team Schedule button</span>
+                  </label>
+                  <label class="check-row">
+                    <input type="checkbox" name="reports" />
+                    <span>Reports button</span>
+                  </label>
+                  <label class="check-row" data-super-admin-only>
+                    <input type="checkbox" name="accountTypes" />
+                    <span>Account Types button</span>
+                  </label>
+                </div>
+                <div class="form-footer">
+                  <p id="site-settings-message" class="form-message" role="status" aria-live="polite"></p>
+                  <button class="secondary-button" type="submit">Save settings</button>
+                </div>
+              </form>
             </section>
           </div>
         </section>

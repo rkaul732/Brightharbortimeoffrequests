@@ -12,6 +12,7 @@
   const employeeSessionKey = "bright-harbor-employee-session";
   const demoEmployeeProfilesKey = "bright-harbor-employee-profiles";
   const workWeekKey = "bright-harbor-work-week";
+  const siteSettingsKey = "bright-harbor-site-settings";
   const brightHarborDomain = "@brightharbor.org";
   const superAdminEmail = "hr@brightharbor.org";
   const patternRequestThreshold = 3;
@@ -47,6 +48,13 @@
       summary: "Every submitted request with dates, status, program, department, and notes."
     }
   ];
+  const defaultSiteSettings = {
+    statusSummary: true,
+    newRequests: true,
+    teamSchedule: true,
+    reports: true,
+    accountTypes: true
+  };
 
   const sampleRequests = [
     {
@@ -188,11 +196,15 @@
     requests: [],
     employeeLoadedRequests: [],
     adminAccounts: [],
+    adminMembers: [],
+    memberAdmins: [],
     admin: null,
     employee: null,
     demoMode: false,
     employeeAuthMode: "signin",
     adminPage: "home",
+    accountMenuOpen: false,
+    settingsSubmenuOpen: false,
     requestTab: "new_since_last",
     scheduleTab: "work_week",
     scheduleWeekDate: toDateInput(new Date()),
@@ -206,6 +218,13 @@
     employeeView: document.querySelector("#employee-view"),
     adminView: document.querySelector("#admin-view"),
     navLinks: document.querySelectorAll("[data-nav]"),
+    accountMenu: document.querySelector("#account-menu"),
+    accountMenuButton: document.querySelector("#account-menu-button"),
+    accountInitials: document.querySelector("#account-initials"),
+    accountDropdown: document.querySelector("#account-dropdown"),
+    accountMenuName: document.querySelector("#account-menu-name"),
+    accountMenuEmail: document.querySelector("#account-menu-email"),
+    accountSettingsSubmenu: document.querySelector("#account-settings-submenu"),
     employeeAuthPanel: document.querySelector("#employee-auth-panel"),
     employeeSigninForm: document.querySelector("#employee-signin-form"),
     employeeRegisterForm: document.querySelector("#employee-register-form"),
@@ -241,6 +260,9 @@
     adminSchedulePage: document.querySelector("#admin-schedule-page"),
     adminReportsPage: document.querySelector("#admin-reports-page"),
     adminAccountsPage: document.querySelector("#admin-accounts-page"),
+    adminMembersPage: document.querySelector("#admin-members-page"),
+    adminMyselfPage: document.querySelector("#admin-myself-page"),
+    adminSiteSettingsPage: document.querySelector("#admin-site-settings-page"),
     adminSearch: document.querySelector("#admin-search"),
     adminNewCount: document.querySelector("#admin-new-count"),
     adminPendingCount: document.querySelector("#admin-pending-count"),
@@ -251,7 +273,13 @@
     scheduleTabContent: document.querySelector("#schedule-tab-content"),
     reportsContent: document.querySelector("#reports-content"),
     accountsContent: document.querySelector("#accounts-content"),
-    accountsMessage: document.querySelector("#accounts-message")
+    accountsMessage: document.querySelector("#accounts-message"),
+    membersContent: document.querySelector("#members-content"),
+    membersMessage: document.querySelector("#members-message"),
+    adminProfileForm: document.querySelector("#admin-profile-form"),
+    adminProfileMessage: document.querySelector("#admin-profile-message"),
+    adminSiteSettingsForm: document.querySelector("#admin-site-settings-form"),
+    siteSettingsMessage: document.querySelector("#site-settings-message")
   };
 
   init();
@@ -267,6 +295,33 @@
 
   function bindEvents() {
     window.addEventListener("hashchange", route);
+
+    els.accountMenuButton.addEventListener("click", (event) => {
+      event.stopPropagation();
+      state.accountMenuOpen = !state.accountMenuOpen;
+      if (!state.accountMenuOpen) state.settingsSubmenuOpen = false;
+      renderAccountMenu();
+    });
+
+    els.accountDropdown.addEventListener("click", async (event) => {
+      event.stopPropagation();
+
+      const settingsButton = event.target.closest("[data-account-action='settings']");
+      if (settingsButton) {
+        state.settingsSubmenuOpen = !state.settingsSubmenuOpen;
+        renderAccountMenu();
+        return;
+      }
+
+      const targetButton = event.target.closest("[data-settings-target]");
+      if (!targetButton) return;
+      await openSettingsTarget(targetButton.dataset.settingsTarget);
+    });
+
+    document.addEventListener("click", () => {
+      if (!state.accountMenuOpen && !state.settingsSubmenuOpen) return;
+      closeAccountMenu();
+    });
 
     els.employeeAuthPanel.addEventListener("click", (event) => {
       const modeButton = event.target.closest("[data-employee-auth-mode]");
@@ -335,8 +390,11 @@
     els.logoutButton.addEventListener("click", () => {
       state.admin = null;
       state.adminAccounts = [];
+      state.adminMembers = [];
+      state.memberAdmins = [];
       state.adminPage = "home";
       sessionStorage.removeItem(sessionKey);
+      closeAccountMenu();
       renderAdmin();
     });
 
@@ -349,6 +407,14 @@
           return;
         }
         state.adminPage = nextPage;
+        if (nextPage === "members") {
+          try {
+            await loadAdminMembers();
+            setMessage(els.membersMessage, "", "");
+          } catch (error) {
+            setMessage(els.membersMessage, error.message || "Could not load members.", "error");
+          }
+        }
         if (nextPage === "accounts") {
           try {
             await loadAdminAccounts();
@@ -384,6 +450,12 @@
       const accountTypeButton = event.target.closest("[data-save-account-type]");
       if (accountTypeButton) {
         await handleAccountTypeSave(accountTypeButton);
+        return;
+      }
+
+      const memberAdminButton = event.target.closest("[data-save-member-admin]");
+      if (memberAdminButton) {
+        await handleMemberAdminSave(memberAdminButton);
         return;
       }
 
@@ -432,6 +504,19 @@
       renderSchedulePage();
     });
 
+    els.adminPanel.addEventListener("submit", async (event) => {
+      if (event.target === els.adminProfileForm) {
+        event.preventDefault();
+        await saveAdminProfile(new FormData(els.adminProfileForm));
+        return;
+      }
+
+      if (event.target === els.adminSiteSettingsForm) {
+        event.preventDefault();
+        saveAdminSiteSettings(new FormData(els.adminSiteSettingsForm));
+      }
+    });
+
     els.adminSearch.addEventListener("input", renderRequestsPage);
   }
 
@@ -452,6 +537,7 @@
       }
       if (state.admin) {
         try {
+          await loadAdminProfile();
           await loadAdminRequests();
           if (isSuperAdmin()) {
             try {
@@ -494,6 +580,49 @@
     } else {
       renderEmployee();
     }
+    renderAccountMenu();
+  }
+
+  async function openSettingsTarget(target) {
+    const account = currentAccount();
+    closeAccountMenu();
+
+    if (!account) return;
+
+    if (target === "myself") {
+      if (account === state.admin && state.admin) {
+        state.adminPage = "myself";
+        location.hash = "admin";
+        renderAdmin();
+        return;
+      }
+      location.hash = "employee";
+      openEmployeeSettings();
+      return;
+    }
+
+    if (!state.admin) {
+      showPopup("Sign in as an admin to use this settings area.");
+      return;
+    }
+
+    location.hash = "admin";
+    state.adminPage = target === "members" ? "members" : "site_settings";
+    if (state.adminPage === "members") {
+      try {
+        await loadAdminMembers();
+        setMessage(els.membersMessage, "", "");
+      } catch (error) {
+        setMessage(els.membersMessage, error.message || "Could not load members.", "error");
+      }
+    }
+    renderAdmin();
+  }
+
+  function closeAccountMenu() {
+    state.accountMenuOpen = false;
+    state.settingsSubmenuOpen = false;
+    renderAccountMenu();
   }
 
   async function submitRequest(formData) {
@@ -691,6 +820,65 @@
     }
   }
 
+  async function saveAdminProfile(formData) {
+    if (!state.admin) return;
+
+    const profile = {
+      first_name: clean(formData.get("firstName")),
+      last_name: clean(formData.get("lastName")),
+      pronouns: clean(formData.get("pronouns")),
+      program: clean(formData.get("program")),
+      manager: clean(formData.get("manager"))
+    };
+
+    if (missingProfileDetails(profile)) {
+      setMessage(els.adminProfileMessage, "Complete your name, program, and manager.", "error");
+      return;
+    }
+    if (!isAllowedProgram(profile.program)) {
+      setMessage(els.adminProfileMessage, "Choose a valid program.", "error");
+      return;
+    }
+
+    toggleForm(els.adminProfileForm, true);
+    setMessage(els.adminProfileMessage, "Saving profile...", "");
+
+    try {
+      const saved = state.demoMode ? saveDemoAdminProfile(profile) : await updateRemoteEmployeeProfile(profile, state.admin);
+      state.admin.profile = saved;
+      state.admin.name = profileDisplayName(saved) || state.admin.name;
+      writeAdminSession();
+      renderAdmin();
+      renderAccountMenu();
+      setMessage(els.adminProfileMessage, "Profile saved.", "success");
+    } catch (error) {
+      setMessage(els.adminProfileMessage, error.message || "Could not save profile.", "error");
+    } finally {
+      toggleForm(els.adminProfileForm, false);
+    }
+  }
+
+  function saveAdminSiteSettings(formData) {
+    const settings = {
+      statusSummary: formData.has("statusSummary"),
+      newRequests: formData.has("newRequests"),
+      teamSchedule: formData.has("teamSchedule"),
+      reports: formData.has("reports"),
+      accountTypes: formData.has("accountTypes")
+    };
+
+    const visibleMainButtons = [settings.newRequests, settings.teamSchedule, settings.reports, isSuperAdmin() && settings.accountTypes].filter(Boolean).length;
+    if (!visibleMainButtons) {
+      setMessage(els.siteSettingsMessage, "Keep at least one landing page button turned on.", "error");
+      return;
+    }
+
+    writeSiteSettings(settings);
+    syncAdminSiteSettingsForm();
+    renderHomePage();
+    setMessage(els.siteSettingsMessage, "Site settings saved.", "success");
+  }
+
   async function createRemoteEmployeeAccount(payload) {
     const response = await fetch("/.netlify/functions/employee-register", {
       method: "POST",
@@ -709,11 +897,11 @@
     return employeeFromResponse(response, "Sign in failed.");
   }
 
-  async function updateRemoteEmployeeProfile(profile) {
+  async function updateRemoteEmployeeProfile(profile, account = state.employee) {
     const response = await fetch("/.netlify/functions/employee-profile", {
       method: "PATCH",
       headers: {
-        authorization: `Bearer ${state.employee.token}`,
+        authorization: `Bearer ${account.token}`,
         "content-type": "application/json"
       },
       body: JSON.stringify(profile)
@@ -722,7 +910,7 @@
     if (!response.ok) {
       throw new Error(body.error || "Could not save profile.");
     }
-    return normalizeProfile(body.profile, state.employee);
+    return normalizeProfile(body.profile, account);
   }
 
   async function loadEmployeeAccount() {
@@ -794,6 +982,7 @@
           role: superAdmin ? "super_admin" : "admin",
           accountType: superAdmin ? "super_admin" : "admin",
           isSuperAdmin: superAdmin,
+          profile: demoAdminProfile(email),
           previousSignInAt: readDemoLastSignIn(email),
           currentSignInAt
         };
@@ -816,9 +1005,11 @@
           role: body.role || "admin",
           accountType: body.accountType || "admin",
           isSuperAdmin: Boolean(body.isSuperAdmin) || isSuperAdminEmail(body.email),
+          profile: normalizeProfile(body.profile, body),
           previousSignInAt: body.previousSignInAt || null,
           currentSignInAt: body.currentSignInAt || new Date().toISOString()
         };
+        await loadAdminProfile();
         await loadAdminRequests();
         if (isSuperAdmin()) {
           try {
@@ -829,7 +1020,7 @@
         }
       }
       state.adminPage = "home";
-      sessionStorage.setItem(sessionKey, JSON.stringify(state.admin));
+      writeAdminSession();
       setMessage(els.loginMessage, "", "");
       renderAdmin();
     } catch (error) {
@@ -853,6 +1044,28 @@
     state.requests = (body.requests || []).map(normalizeRequest);
   }
 
+  async function loadAdminProfile() {
+    if (!state.admin) return;
+
+    if (state.demoMode) {
+      state.admin.profile = demoAdminProfile(state.admin.email);
+      state.admin.name = profileDisplayName(state.admin.profile) || state.admin.name;
+      writeAdminSession();
+      return;
+    }
+
+    const response = await fetch("/.netlify/functions/employee-profile", {
+      headers: { authorization: `Bearer ${state.admin.token}` }
+    });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(body.error || "Could not load your profile.");
+    }
+    state.admin.profile = normalizeProfile(body.profile, state.admin);
+    state.admin.name = profileDisplayName(state.admin.profile) || state.admin.name;
+    writeAdminSession();
+  }
+
   async function loadAdminAccounts() {
     if (!state.admin || !isSuperAdmin()) {
       state.adminAccounts = [];
@@ -872,6 +1085,60 @@
       throw new Error(body.error || "Could not load account types.");
     }
     state.adminAccounts = sortAccounts((body.accounts || []).map(normalizeAccount));
+  }
+
+  async function loadAdminMembers() {
+    if (!state.admin) {
+      state.adminMembers = [];
+      state.memberAdmins = [];
+      return;
+    }
+
+    if (state.demoMode) {
+      const members = demoAdminAccounts();
+      state.adminMembers = members;
+      state.memberAdmins = members.filter((member) => member.account_type === "admin" || member.account_type === "super_admin");
+      return;
+    }
+
+    const response = await fetch("/.netlify/functions/admin-members", {
+      headers: { authorization: `Bearer ${state.admin.token}` }
+    });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(body.error || "Could not load members.");
+    }
+    state.adminMembers = sortAccounts((body.members || []).map(normalizeAccount));
+    state.memberAdmins = sortAccounts(state.adminMembers.filter((member) => member.account_type === "admin" || member.account_type === "super_admin"));
+  }
+
+  async function updateMemberAdmin(id, assignedAdmin) {
+    if (!id) return;
+
+    if (state.demoMode) {
+      state.adminMembers = sortAccounts(
+        state.adminMembers.map((member) =>
+          member.id === id ? { ...member, manager: assignedAdmin, updated_at: new Date().toISOString() } : member
+        )
+      );
+      renderMembersPage();
+      return;
+    }
+
+    const response = await fetch("/.netlify/functions/admin-update-member", {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${state.admin.token}`,
+        "content-type": "application/json"
+      },
+      body: JSON.stringify({ id, assigned_admin: assignedAdmin })
+    });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(body.error || "Could not update this member.");
+    }
+    state.adminMembers = upsertAccount(normalizeAccount(body.member), state.adminMembers);
+    renderMembersPage();
   }
 
   async function updateStatus(id, status, decisionNote) {
@@ -984,9 +1251,30 @@
     }
   }
 
+  async function handleMemberAdminSave(button) {
+    const id = button.dataset.saveMemberAdmin;
+    const wrapper = button.closest("[data-member-row]");
+    const select = wrapper.querySelector("[data-member-admin-select]");
+    const originalText = button.textContent;
+
+    button.disabled = true;
+    button.textContent = "Saving...";
+    setMessage(els.membersMessage, "Saving assigned admin...", "");
+    try {
+      await updateMemberAdmin(id, select.value);
+      setMessage(els.membersMessage, "Assigned admin updated.", "success");
+    } catch (error) {
+      setMessage(els.membersMessage, error.message || "Could not update assigned admin.", "error");
+    } finally {
+      button.disabled = false;
+      button.textContent = originalText;
+    }
+  }
+
   function renderAll() {
     renderEmployee();
     renderAdmin();
+    renderAccountMenu();
   }
 
   function renderEmployee() {
@@ -996,6 +1284,7 @@
     if (!signedIn) closeEmployeeSettings();
 
     renderEmployeeAuth();
+    renderAccountMenu();
 
     if (!signedIn) {
       els.queueTotal.textContent = "0";
@@ -1067,7 +1356,10 @@
       requests: "New Requests",
       schedule: "Team Schedule",
       reports: "Reports",
-      accounts: "Account Types"
+      accounts: "Account Types",
+      members: "Members",
+      myself: "Myself",
+      site_settings: "Site Settings"
     };
     if (state.adminPage === "accounts" && !isSuperAdmin()) {
       state.adminPage = "home";
@@ -1076,6 +1368,7 @@
     els.adminRoleLine.textContent = isSuperAdmin() ? "Super Admin" : "Admin";
 
     showAdminPage(state.adminPage);
+    renderAccountMenu();
   }
 
   function showAdminPage(page) {
@@ -1084,7 +1377,10 @@
       requests: els.adminRequestsPage,
       schedule: els.adminSchedulePage,
       reports: els.adminReportsPage,
-      accounts: els.adminAccountsPage
+      accounts: els.adminAccountsPage,
+      members: els.adminMembersPage,
+      myself: els.adminMyselfPage,
+      site_settings: els.adminSiteSettingsPage
     };
 
     Object.entries(pages).forEach(([name, element]) => {
@@ -1096,6 +1392,9 @@
     if (page === "schedule") renderSchedulePage();
     if (page === "reports") renderReportsPage();
     if (page === "accounts") renderAccountsPage();
+    if (page === "members") renderMembersPage();
+    if (page === "myself") renderAdminMyselfPage();
+    if (page === "site_settings") renderAdminSiteSettingsPage();
   }
 
   function renderHomePage() {
@@ -1114,6 +1413,7 @@
     els.adminHomePage.querySelectorAll("[data-super-admin-only]").forEach((element) => {
       element.hidden = !isSuperAdmin();
     });
+    applyLandingSettings();
   }
 
   function renderRequestsPage() {
@@ -1331,6 +1631,88 @@
         </div>
       </article>
     `;
+  }
+
+  function renderMembersPage() {
+    const members = sortAccounts(state.adminMembers);
+    const admins = sortAccounts(state.memberAdmins);
+
+    els.membersContent.innerHTML = members.length
+      ? `
+        <div class="tab-heading">
+          <h3>Members</h3>
+          <span class="meta-line">${members.length} ${members.length === 1 ? "account" : "accounts"}</span>
+        </div>
+        <div class="members-table">
+          ${memberTableHeader()}
+          ${members.map((member) => memberLine(member, admins)).join("")}
+        </div>
+      `
+      : `<div class="empty-state">No employee accounts have been created yet.</div>`;
+  }
+
+  function memberTableHeader() {
+    return `
+      <div class="members-header" aria-hidden="true">
+        <span>Account Name</span>
+        <span>Email</span>
+        <span>Admin Assigned</span>
+      </div>
+    `;
+  }
+
+  function memberLine(member, admins) {
+    return `
+      <article class="members-line" data-member-row="${escapeHtml(member.id)}">
+        <div class="request-line-main">
+          <span class="table-label">Account Name</span>
+          <strong>${escapeHtml(accountName(member))}</strong>
+          <small>${escapeHtml(member.program || "Unassigned")}</small>
+        </div>
+        <div>
+          <span class="table-label">Email</span>
+          <span>${escapeHtml(member.email)}</span>
+        </div>
+        <div class="member-admin-control">
+          <span class="table-label">Admin Assigned</span>
+          <select aria-label="Admin assigned to ${escapeHtml(accountName(member))}" data-member-admin-select>
+            ${adminOptions(member, admins)}
+          </select>
+          <button class="status-save" type="button" data-save-member-admin="${escapeHtml(member.id)}">Save</button>
+        </div>
+      </article>
+    `;
+  }
+
+  function adminOptions(member, admins) {
+    const assigned = clean(member.manager);
+    const options = admins.length ? admins : [state.admin].filter(Boolean).map((admin) => normalizeAccount(admin.profile || admin));
+    const hasAssigned = assigned && !options.some((admin) => reviewerValue(admin) === assigned);
+    const rows = [
+      `<option value="">Unassigned</option>`,
+      ...(hasAssigned ? [`<option value="${escapeHtml(assigned)}" selected>${escapeHtml(assigned)}</option>`] : []),
+      ...options.map((admin) => {
+        const value = reviewerValue(admin);
+        const label = accountName(admin);
+        return `<option value="${escapeHtml(value)}" ${value === assigned ? "selected" : ""}>${escapeHtml(label)}</option>`;
+      })
+    ];
+    return rows.join("");
+  }
+
+  function reviewerValue(admin) {
+    return accountName(admin);
+  }
+
+  function renderAdminMyselfPage() {
+    syncAdminProfileForm();
+  }
+
+  function renderAdminSiteSettingsPage() {
+    syncAdminSiteSettingsForm();
+    els.adminSiteSettingsPage.querySelectorAll("[data-super-admin-only]").forEach((element) => {
+      element.hidden = !isSuperAdmin();
+    });
   }
 
   function requestTabItems(requests) {
@@ -1933,6 +2315,45 @@
     });
   }
 
+  function renderAccountMenu() {
+    const account = currentAccount();
+    els.accountMenu.hidden = !account;
+    if (!account) {
+      els.accountDropdown.hidden = true;
+      els.accountSettingsSubmenu.hidden = true;
+      els.accountMenuButton.setAttribute("aria-expanded", "false");
+      return;
+    }
+
+    const profile = account.profile || {};
+    const name = account === state.admin ? adminDisplayName() : employeeDisplayName();
+    const email = clean(account.email || profile.email);
+    els.accountInitials.textContent = initialsFor(name, email);
+    els.accountMenuName.textContent = name;
+    els.accountMenuEmail.textContent = email;
+    els.accountDropdown.hidden = !state.accountMenuOpen;
+    els.accountSettingsSubmenu.hidden = !state.settingsSubmenuOpen;
+    els.accountMenuButton.setAttribute("aria-expanded", String(state.accountMenuOpen));
+
+    const settingsButton = els.accountDropdown.querySelector("[data-account-action='settings']");
+    if (settingsButton) settingsButton.setAttribute("aria-expanded", String(state.settingsSubmenuOpen));
+
+    els.accountSettingsSubmenu.querySelectorAll("[data-settings-target]").forEach((button) => {
+      const adminOnly = button.dataset.settingsTarget === "members" || button.dataset.settingsTarget === "site_settings";
+      button.hidden = adminOnly && !state.admin;
+    });
+  }
+
+  function currentAccount() {
+    if (currentViewName() === "admin" && state.admin) return state.admin;
+    if (currentViewName() === "employee" && state.employee) return state.employee;
+    return state.employee || state.admin || null;
+  }
+
+  function currentViewName() {
+    return location.hash.replace("#", "") === "admin" ? "admin" : "employee";
+  }
+
   function syncEmployeeProfileForm() {
     const profile = state.employee?.profile || {};
     setFormValue(els.employeeProfileForm, "firstName", profile.first_name);
@@ -1955,6 +2376,32 @@
     });
   }
 
+  function syncAdminProfileForm() {
+    const profile = state.admin?.profile || {};
+    setFormValue(els.adminProfileForm, "firstName", profile.first_name);
+    setFormValue(els.adminProfileForm, "lastName", profile.last_name);
+    setFormValue(els.adminProfileForm, "pronouns", profile.pronouns);
+    setFormValue(els.adminProfileForm, "program", profile.program);
+    setFormValue(els.adminProfileForm, "manager", profile.manager);
+  }
+
+  function syncAdminSiteSettingsForm() {
+    const settings = readSiteSettings();
+    Object.entries(defaultSiteSettings).forEach(([key]) => {
+      const field = els.adminSiteSettingsForm.elements[key];
+      if (field) field.checked = Boolean(settings[key]);
+    });
+  }
+
+  function applyLandingSettings() {
+    const settings = readSiteSettings();
+    els.adminHomePage.querySelectorAll("[data-landing-feature]").forEach((element) => {
+      const feature = element.dataset.landingFeature;
+      const superAdminOnly = element.matches("[data-super-admin-only]");
+      element.hidden = !settings[feature] || (superAdminOnly && !isSuperAdmin());
+    });
+  }
+
   function setFormValue(form, name, value) {
     const field = form.elements[name];
     if (field) field.value = value || "";
@@ -1962,8 +2409,21 @@
 
   function employeeDisplayName() {
     const profile = state.employee?.profile || {};
-    const name = `${profile.first_name || ""} ${profile.last_name || ""}`.trim();
-    return name || state.employee?.email || "there";
+    return profileDisplayName(profile) || state.employee?.email || "there";
+  }
+
+  function profileDisplayName(profile = {}) {
+    return `${profile.first_name || ""} ${profile.last_name || ""}`.trim();
+  }
+
+  function initialsFor(name, email) {
+    const parts = clean(name)
+      .split(/\s+/)
+      .filter(Boolean);
+    if (parts.length >= 2) return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
+    if (parts.length === 1 && parts[0].length >= 2) return parts[0].slice(0, 2).toUpperCase();
+    const prefix = clean(email).split("@")[0] || "BH";
+    return prefix.slice(0, 2).toUpperCase();
   }
 
   function accountName(account) {
@@ -2246,11 +2706,30 @@
         email,
         role: superAdmin ? "super_admin" : session.role || "admin",
         accountType: superAdmin ? "super_admin" : session.accountType || "admin",
-        isSuperAdmin: superAdmin
+        isSuperAdmin: superAdmin,
+        profile: normalizeProfile(session.profile, session)
       };
     } catch (error) {
       return null;
     }
+  }
+
+  function writeAdminSession() {
+    if (!state.admin) return;
+    sessionStorage.setItem(
+      sessionKey,
+      JSON.stringify({
+        email: state.admin.email || "",
+        name: state.admin.name || "",
+        token: state.admin.token || "",
+        role: state.admin.role || "admin",
+        accountType: state.admin.accountType || "admin",
+        isSuperAdmin: Boolean(state.admin.isSuperAdmin),
+        previousSignInAt: state.admin.previousSignInAt || null,
+        currentSignInAt: state.admin.currentSignInAt || null,
+        profile: normalizeProfile(state.admin.profile, state.admin)
+      })
+    );
   }
 
   function readEmployeeSession() {
@@ -2312,6 +2791,33 @@
       ...profile,
       id: state.employee.id,
       email: state.employee.email
+    });
+    writeDemoEmployeeProfile(saved);
+    return saved;
+  }
+
+  function demoAdminProfile(email) {
+    const saved = readDemoEmployeeProfile(email);
+    if (saved) return saved;
+    const name = deriveAdminName(email).split(/\s+/);
+    const profile = normalizeProfile({
+      id: `demo-${email}`,
+      email,
+      first_name: name[0] || "Admin",
+      last_name: name.slice(1).join(" ") || "User",
+      pronouns: "",
+      program: "Front Desk Professionals",
+      manager: "HR Admin"
+    });
+    writeDemoEmployeeProfile(profile);
+    return profile;
+  }
+
+  function saveDemoAdminProfile(profile) {
+    const saved = normalizeProfile({
+      ...profile,
+      id: state.admin.email ? `demo-${state.admin.email}` : state.admin.id,
+      email: state.admin.email
     });
     writeDemoEmployeeProfile(saved);
     return saved;
@@ -2421,6 +2927,28 @@
 
   function writeWorkWeek(workWeek) {
     localStorage.setItem(workWeekKey, JSON.stringify(workWeek));
+  }
+
+  function readSiteSettings() {
+    try {
+      const saved = JSON.parse(localStorage.getItem(siteSettingsStorageKey()) || "null");
+      return {
+        ...defaultSiteSettings,
+        ...(saved && typeof saved === "object" ? saved : {})
+      };
+    } catch (error) {
+      localStorage.removeItem(siteSettingsStorageKey());
+      return { ...defaultSiteSettings };
+    }
+  }
+
+  function writeSiteSettings(settings) {
+    localStorage.setItem(siteSettingsStorageKey(), JSON.stringify({ ...defaultSiteSettings, ...settings }));
+  }
+
+  function siteSettingsStorageKey() {
+    const email = clean(state.admin?.email || state.employee?.email || "default").toLowerCase();
+    return `${siteSettingsKey}:${email}`;
   }
 
   function upsertRequest(request, requests) {
