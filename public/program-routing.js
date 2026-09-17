@@ -21,6 +21,13 @@
       ]
     },
     {
+      program: "Code Red/Code Blue",
+      supervisors: [
+        person("Coordinator", "Sarah Petrasek", "spetrasek@brightharbor.org"),
+        person("Director", "Reena Johnson", "rjohnson@brightharbor.org")
+      ]
+    },
+    {
       program: "Involuntary Outpatient Commitment",
       supervisors: [
         person("Coordinator", "Courtney Tokgoz", "ctokgoz@brightharbor.org"),
