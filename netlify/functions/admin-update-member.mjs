@@ -10,7 +10,7 @@ import {
   requireProgramList,
   supervisorSummaryForPrograms
 } from "./_shared/http.mjs";
-import { isSuperAdminEmail, normalizeAccountType, supabaseRest, verifyAdmin } from "./_shared/supabase.mjs";
+import { isSuperAdminEmail, normalizeAccountType, supabaseRest, verifySuperAdmin } from "./_shared/supabase.mjs";
 
 export async function handler(event) {
   const options = preflight(event);
@@ -18,7 +18,7 @@ export async function handler(event) {
 
   try {
     assertMethod(event, "POST");
-    await verifyAdmin(event);
+    await verifySuperAdmin(event);
 
     const body = await readJson(event);
     const id = clean(body.id);

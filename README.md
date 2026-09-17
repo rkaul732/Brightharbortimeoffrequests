@@ -239,24 +239,27 @@ Employees do not need to be added manually in Supabase. Employees create their o
 
 Admins are different. Admins must exist in Supabase Authentication and must either be marked as `admin` by the super admin inside the website or be listed in the `ADMIN_EMAILS` environment variable.
 
-The super admin is the person who can change other employees from `employee` to `admin`.
+Super admins can change other employees from `employee` to `admin` and can edit member profile information.
 
-For this website, the super admin email is:
+For this website, the built-in super admin emails are:
 
 ```text
 hr@brightharbor.org
+rkaul@brightharbor.org
+kwolf@brightharbor.org
+jwoodward@brightharbor.org
 ```
 
-Set that user's password in Supabase Authentication. Use the temporary password you chose, but do not put that password in GitHub, Netlify environment variables, or any website file. Supabase should be the only place where the password is stored.
+Set each super admin user's password in Supabase Authentication. Use the temporary password you chose, but do not put that password in GitHub, Netlify environment variables, or any website file. Supabase should be the only place where the password is stored.
 
 1. In Supabase, open your project.
 2. In the left sidebar, click **Authentication**.
 3. Click **Users**.
 4. Click **Add user**.
 5. Choose **Create new user** or **Send invitation**.
-6. Enter `hr@brightharbor.org`.
+6. Enter one of the super admin emails above.
 7. Set or invite the user to set the password.
-8. Repeat this for any first admins you want to create manually.
+8. Repeat this for the other super admins and any first admins you want to create manually.
 
 After the super admin signs into the live website, they can open **Account Types** and change registered employees from **Employee** to **Admin**.
 
@@ -452,7 +455,7 @@ SUPABASE_SECRET_KEY
 RESEND_API_KEY
 RESEND_FROM_EMAIL
 ADMIN_NOTIFY_EMAIL
-SUPER_ADMIN_EMAIL
+SUPER_ADMIN_EMAILS
 ADMIN_EMAILS
 ```
 
@@ -465,7 +468,7 @@ SUPABASE_SECRET_KEY=sb_secret_your_key_here
 RESEND_API_KEY=re_your_key_here
 RESEND_FROM_EMAIL=Bright Harbor Time Off <timeoff@brightharbor.org>
 ADMIN_NOTIFY_EMAIL=hr@brightharbor.org
-SUPER_ADMIN_EMAIL=hr@brightharbor.org
+SUPER_ADMIN_EMAILS=hr@brightharbor.org,rkaul@brightharbor.org,kwolf@brightharbor.org,jwoodward@brightharbor.org
 ADMIN_EMAILS=manager@brightharbor.org
 ```
 
@@ -689,7 +692,7 @@ After `git push` finishes, go to Netlify and wait for the deploy to publish.
 | `RESEND_API_KEY` | Yes for email | Resend API keys | Lets the app send email notifications. |
 | `RESEND_FROM_EMAIL` | Yes for email | Your verified Resend domain | The sender shown on emails. |
 | `ADMIN_NOTIFY_EMAIL` | Yes for admin alerts | Your preferred inbox | Receives new-request notifications. |
-| `SUPER_ADMIN_EMAIL` | Recommended | Your super admin email | Controls who can change employee/admin account types. Defaults to `hr@brightharbor.org` if left blank. |
+| `SUPER_ADMIN_EMAILS` | Recommended | Your super admin emails | Comma-separated list of people who can manage account types and edit member profiles. Defaults include `hr@brightharbor.org`, `rkaul@brightharbor.org`, `kwolf@brightharbor.org`, and `jwoodward@brightharbor.org`. |
 | `ADMIN_EMAILS` | Optional after super admin setup | Your starter admin list | Lets existing admins sign in before the super admin changes account types inside the site. |
 | `ADMIN_SETUP_TOKEN` | Temporary only | You make this up | Protects the one-time admin reset function. Delete after setup works. |
 | `ADMIN_SETUP_PASSWORD` | Temporary only | You choose this password | Lets the one-time reset function set admin passwords. Delete after setup works. |
@@ -734,7 +737,7 @@ Check these items:
 
 - The admin user exists in Supabase Authentication.
 - The admin accepted the invitation and set a password.
-- The super admin is signing in with `hr@brightharbor.org`, or the admin was marked as `admin` on the **Account Types** page.
+- The super admin is signing in with one of the built-in super admin emails, or the admin was marked as `admin` on the **Account Types** page.
 - If you still use `ADMIN_EMAILS`, the email in `ADMIN_EMAILS` has no accidental spaces or spelling differences.
 - The site was redeployed after changing environment variables.
 
@@ -766,7 +769,7 @@ If that still does not work, recreate the auth user instead of editing the old o
 8. Save the user.
 9. Try signing in again on the live Netlify link.
 
-Do this for `hr@brightharbor.org` first so the super admin can sign in. After that, use **Account Types** to make other users admins.
+Do this for one of the built-in super admin emails first so a super admin can sign in. After that, use **Account Types** to make other users admins.
 
 If the employee side also rejects the same email/password, it is definitely a Supabase email/password problem. If the employee side signs in but the admin side says the account is not an admin, then the password is correct and the account still needs admin access.
 

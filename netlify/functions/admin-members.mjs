@@ -1,5 +1,5 @@
 import { assertMethod, clean, handleError, json, preflight } from "./_shared/http.mjs";
-import { isSuperAdminEmail, normalizeAccountType, supabaseRest, verifyAdmin } from "./_shared/supabase.mjs";
+import { isSuperAdminEmail, normalizeAccountType, supabaseRest, verifySuperAdmin } from "./_shared/supabase.mjs";
 
 export async function handler(event) {
   const options = preflight(event);
@@ -7,7 +7,7 @@ export async function handler(event) {
 
   try {
     assertMethod(event, "GET");
-    await verifyAdmin(event);
+    await verifySuperAdmin(event);
 
     const accounts = await supabaseRest("employee_profiles?select=*");
     const members = sortProfiles(accounts).map(memberResponse);

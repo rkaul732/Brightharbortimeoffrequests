@@ -14,7 +14,18 @@
   const workWeekKey = "bright-harbor-work-week";
   const siteSettingsKey = "bright-harbor-site-settings";
   const brightHarborDomain = "@brightharbor.org";
-  const superAdminEmail = "hr@brightharbor.org";
+  const superAdminEmails = [
+    "hr@brightharbor.org",
+    "rkaul@brightharbor.org",
+    "kwolf@brightharbor.org",
+    "jwoodward@brightharbor.org"
+  ];
+  const demoSuperAdminProfiles = {
+    "hr@brightharbor.org": { first_name: "HR", last_name: "Admin" },
+    "rkaul@brightharbor.org": { first_name: "Rebecca", last_name: "Kaul" },
+    "kwolf@brightharbor.org": { first_name: "Kim", last_name: "Wolf" },
+    "jwoodward@brightharbor.org": { first_name: "Judy", last_name: "Woodward" }
+  };
   const patternRequestThreshold = 3;
   const patternWindowDays = 42;
   const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
@@ -411,6 +422,10 @@
           setMessage(els.accountsMessage, "Only the super admin can manage account types.", "error");
           return;
         }
+        if (nextPage === "members" && !isSuperAdmin()) {
+          showPopup("Only super admins can edit member profiles.");
+          return;
+        }
         state.adminPage = nextPage;
         if (nextPage === "members") {
           try {
@@ -460,6 +475,10 @@
 
       const editMemberButton = event.target.closest("[data-edit-member]");
       if (editMemberButton) {
+        if (!isSuperAdmin()) {
+          setMessage(els.membersMessage, "Only super admins can edit member profiles.", "error");
+          return;
+        }
         state.memberEditId = editMemberButton.dataset.editMember;
         setMessage(els.membersMessage, "", "");
         renderMembersPage();
@@ -633,6 +652,10 @@
 
     if (!state.admin) {
       showPopup("Sign in as an admin to use this settings area.");
+      return;
+    }
+    if (target === "members" && !isSuperAdmin()) {
+      showPopup("Only super admins can edit member profiles.");
       return;
     }
 
@@ -1748,6 +1771,11 @@
   }
 
   function renderMembersPage() {
+    if (!isSuperAdmin()) {
+      els.membersContent.innerHTML = `<div class="empty-state">Only super admins can edit member profiles.</div>`;
+      return;
+    }
+
     const members = sortAccounts(state.adminMembers);
 
     els.membersContent.innerHTML = members.length
@@ -2519,8 +2547,10 @@
     if (settingsButton) settingsButton.setAttribute("aria-expanded", String(state.settingsSubmenuOpen));
 
     els.accountSettingsSubmenu.querySelectorAll("[data-settings-target]").forEach((button) => {
-      const adminOnly = button.dataset.settingsTarget === "members" || button.dataset.settingsTarget === "site_settings";
-      button.hidden = adminOnly && !state.admin;
+      const target = button.dataset.settingsTarget;
+      const adminOnly = target === "members" || target === "site_settings";
+      const superAdminOnly = target === "members";
+      button.hidden = (adminOnly && !state.admin) || (superAdminOnly && !isSuperAdmin());
     });
   }
 
@@ -2669,7 +2699,7 @@
   }
 
   function isSuperAdminEmail(email) {
-    return clean(email).toLowerCase() === superAdminEmail;
+    return superAdminEmails.includes(clean(email).toLowerCase());
   }
 
   function missingProfileDetails(profile) {
@@ -3146,18 +3176,21 @@
     const accounts = new Map();
     const now = new Date().toISOString();
 
-    accounts.set(superAdminEmail, normalizeAccount({
-      id: "demo-super-admin",
-      email: superAdminEmail,
-      first_name: "HR",
-      last_name: "Admin",
-      program: "",
-      manager: "",
-      account_type: "super_admin",
-      is_super_admin: true,
-      created_at: now,
-      updated_at: now
-    }));
+    superAdminEmails.forEach((email) => {
+      const profile = demoSuperAdminProfiles[email] || {};
+      accounts.set(email, normalizeAccount({
+        id: `demo-super-admin-${slugify(email)}`,
+        email,
+        first_name: profile.first_name || deriveAdminName(email),
+        last_name: profile.last_name || "",
+        program: "",
+        manager: "",
+        account_type: "super_admin",
+        is_super_admin: true,
+        created_at: now,
+        updated_at: now
+      }));
+    });
 
     state.requests.forEach((request) => {
       const email = clean(request.email).toLowerCase();

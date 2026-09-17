@@ -1,7 +1,14 @@
 import { assertMethod, clean, httpError, json, preflight, readJson } from "./_shared/http.mjs";
-import { assertBrightHarborEmail, supabaseBaseUrl, supabaseRest } from "./_shared/supabase.mjs";
+import { assertBrightHarborEmail, isSuperAdminEmail, supabaseBaseUrl, supabaseRest } from "./_shared/supabase.mjs";
 
-const defaultAdminEmails = ["hr@brightharbor.org", "mcorrigan@brightharbor.org", "kshalloo@brightharbor.org"];
+const defaultAdminEmails = [
+  "hr@brightharbor.org",
+  "rkaul@brightharbor.org",
+  "kwolf@brightharbor.org",
+  "jwoodward@brightharbor.org",
+  "mcorrigan@brightharbor.org",
+  "kshalloo@brightharbor.org"
+];
 
 export async function handler(event) {
   const options = preflight(event);
@@ -32,7 +39,7 @@ export async function handler(event) {
         email,
         action: existing ? "password reset" : "created",
         userId: user.id || existing?.id || "",
-        accountType: email === "hr@brightharbor.org" ? "super_admin" : "admin"
+        accountType: isSuperAdminEmail(email) ? "super_admin" : "admin"
       });
     }
 
@@ -184,6 +191,9 @@ function metadataFor(email) {
 function profileName(email) {
   const names = {
     "hr@brightharbor.org": { first: "HR", last: "Admin" },
+    "rkaul@brightharbor.org": { first: "Rebecca", last: "Kaul" },
+    "kwolf@brightharbor.org": { first: "Kim", last: "Wolf" },
+    "jwoodward@brightharbor.org": { first: "Judy", last: "Woodward" },
     "mcorrigan@brightharbor.org": { first: "Meghan", last: "Corrigan" },
     "kshalloo@brightharbor.org": { first: "K", last: "Shalloo" }
   };

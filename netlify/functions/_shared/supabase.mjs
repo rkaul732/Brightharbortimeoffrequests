@@ -1,7 +1,12 @@
 import { clean, httpError, normalizeProgramList, programLabel, programListValue, supervisorSummaryForPrograms, isValidEmail } from "./http.mjs";
 
 const brightHarborDomain = "@brightharbor.org";
-const defaultSuperAdminEmail = "hr@brightharbor.org";
+const defaultSuperAdminEmails = [
+  "hr@brightharbor.org",
+  "rkaul@brightharbor.org",
+  "kwolf@brightharbor.org",
+  "jwoodward@brightharbor.org"
+];
 const accountTypes = new Set(["employee", "admin"]);
 
 function firstEnv(names) {
@@ -146,7 +151,7 @@ export async function verifyAdmin(event) {
 export async function verifySuperAdmin(event) {
   const admin = await verifyAdmin(event);
   if (!admin.is_super_admin) {
-    throw httpError(403, "Only the super admin can change account types.");
+    throw httpError(403, "Only a super admin can do this.");
   }
   return admin;
 }
@@ -186,11 +191,11 @@ export function isSuperAdminEmail(email) {
 }
 
 export function superAdminEmails() {
-  const configured = firstEnv(["SUPER_ADMIN_EMAILS", "SUPER_ADMIN_EMAIL"]) || defaultSuperAdminEmail;
-  return String(configured)
-    .split(",")
+  const configured = firstEnv(["SUPER_ADMIN_EMAILS", "SUPER_ADMIN_EMAIL"]) || "";
+  return [...defaultSuperAdminEmails, ...String(configured).split(",")]
     .map((item) => item.trim().toLowerCase())
-    .filter(Boolean);
+    .filter(Boolean)
+    .filter((item, index, list) => list.indexOf(item) === index);
 }
 
 export function hasAdminAccessConfig() {
