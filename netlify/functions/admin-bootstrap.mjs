@@ -1,4 +1,4 @@
-import { assertMethod, clean, handleError, httpError, json, preflight, readJson } from "./_shared/http.mjs";
+import { assertMethod, clean, httpError, json, preflight, readJson } from "./_shared/http.mjs";
 import { assertBrightHarborEmail, supabaseRest } from "./_shared/supabase.mjs";
 
 const defaultAdminEmails = ["hr@brightharbor.org", "mcorrigan@brightharbor.org"];
@@ -42,8 +42,17 @@ export async function handler(event) {
       admins: results
     });
   } catch (error) {
-    return handleError(error);
+    return handleSetupError(error);
   }
+}
+
+function handleSetupError(error) {
+  const statusCode = error.statusCode || 500;
+  if (statusCode === 500) console.error(error);
+  return json(statusCode, {
+    error: error.message || "Admin setup failed.",
+    nextStep: "Check Netlify environment variables ADMIN_SETUP_TOKEN, ADMIN_SETUP_PASSWORD, ADMIN_SETUP_EMAILS, SUPABASE_URL, and SUPABASE_SECRET_KEY, then trigger a new deploy."
+  });
 }
 
 function requireSetupToken(inputToken) {
