@@ -18,18 +18,8 @@
   const patternRequestThreshold = 3;
   const patternWindowDays = 42;
   const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-  const programOptions = [
-    "Access",
-    "ISC",
-    "Outpatient",
-    "Front Desk Professionals",
-    "SOS",
-    "Shore Haven",
-    "Recovery",
-    "Nursing Case Management",
-    "On Point/Arrive Together",
-    "ICM Blue"
-  ];
+  const programRouting = Array.isArray(window.BRIGHT_HARBOR_PROGRAM_ROUTING) ? window.BRIGHT_HARBOR_PROGRAM_ROUTING : [];
+  const programOptions = programRouting.map((entry) => entry.program);
   const programValues = new Set(programOptions);
   const reportTypes = [
     {
@@ -208,6 +198,7 @@
     settingsSubmenuOpen: false,
     requestTab: "new_since_last",
     scheduleTab: "work_week",
+    scheduleProgramFilter: "all",
     scheduleWeekDate: toDateInput(new Date()),
     scheduleMonthDate: toMonthInput(new Date()),
     reportStartDate: "",
@@ -290,6 +281,7 @@
     state.employee = readEmployeeSession();
 
     bindEvents();
+    renderProgramCheckboxGroups();
     await hydrate();
     route();
   }
@@ -322,6 +314,17 @@
     document.addEventListener("click", () => {
       if (!state.accountMenuOpen && !state.settingsSubmenuOpen) return;
       closeAccountMenu();
+    });
+
+    document.addEventListener("change", (event) => {
+      const checkbox = event.target.closest("[data-program-checkbox]");
+      if (!checkbox) return;
+      syncSupervisorPreviews();
+      const memberEditRow = checkbox.closest("[data-member-edit-row]");
+      if (memberEditRow) syncMemberEditRoutePreview(memberEditRow);
+      if (checkbox.dataset.programCheckbox === "employee-profile") {
+        syncRequestProfileFields();
+      }
     });
 
     els.employeeAuthPanel.addEventListener("click", (event) => {
@@ -525,6 +528,9 @@
       if (control.dataset.scheduleControl === "monthDate") {
         state.scheduleMonthDate = control.value || toMonthInput(new Date());
       }
+      if (control.dataset.scheduleControl === "programFilter") {
+        state.scheduleProgramFilter = control.value || "all";
+      }
       renderSchedulePage();
     });
 
@@ -662,8 +668,8 @@
       last_name: clean(profile.last_name) || clean(formData.get("lastName")),
       email: clean(state.employee.email || profile.email || formData.get("email")).toLowerCase(),
       department: clean(formData.get("department")),
-      program: clean(profile.program) || clean(formData.get("program")),
-      manager: clean(profile.manager) || clean(formData.get("manager")),
+      program: clean(formData.get("program")),
+      manager: supervisorSummaryForProgram(formData.get("program")),
       time_off_type: timeOffTypeLabel(formData.get("timeOffType")),
       start_date: clean(formData.get("startDate")),
       end_date: clean(formData.get("endDate")),
@@ -721,12 +727,13 @@
   async function registerEmployee(formData) {
     const email = clean(formData.get("email")).toLowerCase();
     const password = String(formData.get("password") || "");
+    const programs = programsFromForm(els.employeeRegisterForm);
     const profile = {
       first_name: clean(formData.get("firstName")),
       last_name: clean(formData.get("lastName")),
       pronouns: clean(formData.get("pronouns")),
-      program: clean(formData.get("program")),
-      manager: clean(formData.get("manager"))
+      program: programListValue(programs),
+      manager: supervisorSummaryForPrograms(programs)
     };
 
     if (!isBrightHarborEmail(email)) {
@@ -738,11 +745,7 @@
       return;
     }
     if (missingProfileDetails(profile)) {
-      setMessage(els.employeeAuthMessage, "Complete your name, program, and manager.", "error");
-      return;
-    }
-    if (!isAllowedProgram(profile.program)) {
-      setMessage(els.employeeAuthMessage, "Choose a valid program.", "error");
+      setMessage(els.employeeAuthMessage, "Complete your name and choose at least one program.", "error");
       return;
     }
 
@@ -752,7 +755,7 @@
     try {
       const employee = state.demoMode
         ? registerDemoEmployee(email, profile)
-        : await createRemoteEmployeeAccount({ email, password, ...profile });
+        : await createRemoteEmployeeAccount({ email, password, ...profile, programs });
       state.employee = employee;
       writeEmployeeSession(employee);
       await loadEmployeeRequestsForSession();
@@ -810,20 +813,17 @@
   async function saveEmployeeProfile(formData) {
     if (!state.employee) return;
 
+    const programs = programsFromForm(els.employeeProfileForm);
     const profile = {
       first_name: clean(formData.get("firstName")),
       last_name: clean(formData.get("lastName")),
       pronouns: clean(formData.get("pronouns")),
-      program: clean(formData.get("program")),
-      manager: clean(formData.get("manager"))
+      program: programListValue(programs),
+      manager: supervisorSummaryForPrograms(programs)
     };
 
     if (missingProfileDetails(profile)) {
-      setMessage(els.employeeProfileMessage, "Complete your name, program, and manager.", "error");
-      return;
-    }
-    if (!isAllowedProgram(profile.program)) {
-      setMessage(els.employeeProfileMessage, "Choose a valid program.", "error");
+      setMessage(els.employeeProfileMessage, "Complete your name and choose at least one program.", "error");
       return;
     }
 
@@ -831,7 +831,7 @@
     setMessage(els.employeeProfileMessage, "Saving profile...", "");
 
     try {
-      const saved = state.demoMode ? saveDemoEmployeeProfile(profile) : await updateRemoteEmployeeProfile(profile);
+      const saved = state.demoMode ? saveDemoEmployeeProfile(profile) : await updateRemoteEmployeeProfile({ ...profile, programs });
       state.employee.profile = saved;
       writeEmployeeSession(state.employee);
       syncRequestProfileFields();
@@ -847,20 +847,17 @@
   async function saveAdminProfile(formData) {
     if (!state.admin) return;
 
+    const programs = programsFromForm(els.adminProfileForm);
     const profile = {
       first_name: clean(formData.get("firstName")),
       last_name: clean(formData.get("lastName")),
       pronouns: clean(formData.get("pronouns")),
-      program: clean(formData.get("program")),
-      manager: clean(formData.get("manager"))
+      program: programListValue(programs),
+      manager: supervisorSummaryForPrograms(programs)
     };
 
     if (missingProfileDetails(profile)) {
-      setMessage(els.adminProfileMessage, "Complete your name, program, and manager.", "error");
-      return;
-    }
-    if (!isAllowedProgram(profile.program)) {
-      setMessage(els.adminProfileMessage, "Choose a valid program.", "error");
+      setMessage(els.adminProfileMessage, "Complete your name and choose at least one program.", "error");
       return;
     }
 
@@ -868,7 +865,7 @@
     setMessage(els.adminProfileMessage, "Saving profile...", "");
 
     try {
-      const saved = state.demoMode ? saveDemoAdminProfile(profile) : await updateRemoteEmployeeProfile(profile, state.admin);
+      const saved = state.demoMode ? saveDemoAdminProfile(profile) : await updateRemoteEmployeeProfile({ ...profile, programs }, state.admin);
       state.admin.profile = saved;
       state.admin.name = profileDisplayName(saved) || state.admin.name;
       writeAdminSession();
@@ -1178,7 +1175,7 @@
         last_name: payload.last_name,
         pronouns: payload.pronouns,
         program: payload.program,
-        manager: payload.assigned_admin,
+        manager: supervisorSummaryForPrograms(payload.programs || payload.program),
         updated_at: new Date().toISOString()
       });
       applyMemberUpdate(updated);
@@ -1354,21 +1351,18 @@
     const id = button.dataset.saveMemberProfile;
     const wrapper = button.closest("[data-member-edit-row]");
     const originalText = button.textContent;
+    const programs = programsFromContainer(wrapper);
     const payload = {
       id,
       first_name: clean(wrapper.querySelector('[name="firstName"]')?.value),
       last_name: clean(wrapper.querySelector('[name="lastName"]')?.value),
       pronouns: clean(wrapper.querySelector('[name="pronouns"]')?.value),
-      program: clean(wrapper.querySelector('[name="program"]')?.value),
-      assigned_admin: clean(wrapper.querySelector('[name="assignedAdmin"]')?.value)
+      program: programListValue(programs),
+      programs
     };
 
     if (!payload.first_name || !payload.last_name || !payload.program) {
-      setMessage(els.membersMessage, "Complete the member's first name, last name, and program.", "error");
-      return;
-    }
-    if (!isAllowedProgram(payload.program)) {
-      setMessage(els.membersMessage, "Choose a valid program.", "error");
+      setMessage(els.membersMessage, "Complete the member's first name, last name, and at least one program.", "error");
       return;
     }
 
@@ -1447,6 +1441,7 @@
 
     els.employeeSigninForm.hidden = state.employeeAuthMode !== "signin";
     els.employeeRegisterForm.hidden = state.employeeAuthMode !== "register";
+    syncSupervisorPreview("register", programsFromForm(els.employeeRegisterForm));
   }
 
   function renderEmployeeSummary() {
@@ -1557,7 +1552,7 @@
   }
 
   function renderSchedulePage() {
-    const approved = approvedRequests();
+    const approved = scheduleApprovedRequests();
 
     els.adminPanel.querySelectorAll("[data-schedule-tab]").forEach((button) => {
       const active = button.dataset.scheduleTab === state.scheduleTab;
@@ -1602,6 +1597,7 @@
           ${[5, 6, 7].map((length) => `<option value="${length}" ${state.workWeek.length === length ? "selected" : ""}>${length} days</option>`).join("")}
         </select>
       </label>
+      ${scheduleProgramFilterControl()}
     `;
 
     els.scheduleTabContent.innerHTML = `
@@ -1625,6 +1621,7 @@
         <span>Month</span>
         <input type="month" value="${escapeHtml(state.scheduleMonthDate)}" data-schedule-control="monthDate" />
       </label>
+      ${scheduleProgramFilterControl()}
     `;
 
     els.scheduleTabContent.innerHTML = `
@@ -1641,8 +1638,8 @@
 
   function renderScheduleByEmployee(approved) {
     const groups = groupApprovedByEmployee(approved);
-    els.scheduleControls.hidden = true;
-    els.scheduleControls.innerHTML = "";
+    els.scheduleControls.hidden = false;
+    els.scheduleControls.innerHTML = scheduleProgramFilterControl();
 
     els.scheduleTabContent.innerHTML = groups.length
       ? `<div class="employee-approval-list">${groups.map(employeeApprovalGroup).join("")}</div>`
@@ -1702,7 +1699,7 @@
       <div class="account-type-header" aria-hidden="true">
         <span>Person</span>
         <span>Program</span>
-        <span>Manager</span>
+        <span>Request Routing</span>
         <span>Account Type</span>
         <span>Action</span>
       </div>
@@ -1722,7 +1719,7 @@
           <span>${escapeHtml(account.program || "Unassigned")}</span>
         </div>
         <div>
-          <span class="table-label">Manager</span>
+          <span class="table-label">Request Routing</span>
           <span>${escapeHtml(account.manager || "Unassigned")}</span>
         </div>
         <div class="account-type-control">
@@ -1752,7 +1749,6 @@
 
   function renderMembersPage() {
     const members = sortAccounts(state.adminMembers);
-    const admins = sortAccounts(state.memberAdmins);
 
     els.membersContent.innerHTML = members.length
       ? `
@@ -1762,7 +1758,7 @@
         </div>
         <div class="members-table">
           ${memberTableHeader()}
-          ${members.map((member) => memberLine(member, admins)).join("")}
+          ${members.map((member) => memberLine(member)).join("")}
         </div>
       `
       : `<div class="empty-state">No employee accounts have been created yet.</div>`;
@@ -1773,12 +1769,13 @@
       <div class="members-header" aria-hidden="true">
         <span>Account Name</span>
         <span>Email</span>
-        <span>Admin Assigned</span>
+        <span>Request Routing</span>
       </div>
     `;
   }
 
-  function memberLine(member, admins) {
+  function memberLine(member) {
+    const routingSummary = member.manager || supervisorSummaryForPrograms(profilePrograms(member)) || "Unassigned";
     return `
       <article class="members-line" data-member-row="${escapeHtml(member.id)}">
         <div class="request-line-main">
@@ -1792,19 +1789,18 @@
           <span class="table-label">Email</span>
           <span>${escapeHtml(member.email)}</span>
         </div>
-        <div class="member-admin-control">
-          <span class="table-label">Admin Assigned</span>
-          <select aria-label="Admin assigned to ${escapeHtml(accountName(member))}" data-member-admin-select>
-            ${adminOptions(member, admins)}
-          </select>
-          <button class="status-save" type="button" data-save-member-admin="${escapeHtml(member.id)}">Save</button>
+        <div>
+          <span class="table-label">Request Routing</span>
+          <span>${escapeHtml(routingSummary)}</span>
         </div>
       </article>
-      ${state.memberEditId === member.id ? memberEditPanel(member, admins) : ""}
+      ${state.memberEditId === member.id ? memberEditPanel(member) : ""}
     `;
   }
 
-  function memberEditPanel(member, admins) {
+  function memberEditPanel(member) {
+    const memberPrograms = profilePrograms(member);
+    const routingSummary = supervisorSummaryForPrograms(memberPrograms);
     return `
       <section class="member-edit-panel" data-member-edit-row="${escapeHtml(member.id)}" aria-label="Edit ${escapeHtml(accountName(member))}">
         <div class="member-edit-heading">
@@ -1828,21 +1824,14 @@
             <input name="pronouns" value="${escapeHtml(member.pronouns)}" autocomplete="off" />
           </label>
         </div>
-        <div class="field-grid two">
-          <label>
-            <span>Program</span>
-            <select name="program" required>
-              <option value="">Select program</option>
-              ${programOptions.map((program) => `<option value="${escapeHtml(program)}" ${member.program === program ? "selected" : ""}>${escapeHtml(program)}</option>`).join("")}
-            </select>
-          </label>
-          <label>
-            <span>Admin assigned</span>
-            <select name="assignedAdmin">
-              ${adminOptions(member, admins)}
-            </select>
-          </label>
+        <div class="field-block">
+          <span class="field-label">Program(s)</span>
+          <div class="program-checkbox-grid">
+            ${programCheckboxHtml(`member-${member.id}`, memberPrograms)}
+          </div>
+          <p class="field-hint">Requests route to the supervisors listed for the selected program.</p>
         </div>
+        <div class="route-preview" data-member-route-preview>${escapeHtml(routingSummary ? `Requests route to: ${routingSummary}` : "Choose at least one program to set routing.")}</div>
         <div class="form-footer">
           <span class="meta-line">Changes update this member's account profile.</span>
           <button class="status-save" type="button" data-save-member-profile="${escapeHtml(member.id)}">Save member</button>
@@ -1991,7 +1980,7 @@
         </header>
         <div class="meta-line">${formatDateRange(request.start_date, request.end_date)} - ${request.business_days} business ${request.business_days === 1 ? "day" : "days"}</div>
         <div class="meta-line">Submitted: ${escapeHtml(formatDateTime(request.created_at))}</div>
-        ${detailed ? `<div class="meta-line">${escapeHtml(request.email)} - Manager: ${escapeHtml(request.manager)}</div>` : ""}
+        ${detailed ? `<div class="meta-line">${escapeHtml(request.email)} - Request routing: ${escapeHtml(request.manager)}</div>` : ""}
         ${request.reason ? `<p>${escapeHtml(request.reason)}</p>` : ""}
         ${detailed && request.decision_note ? `<div class="meta-line">Decision note: ${escapeHtml(request.decision_note)}</div>` : ""}
       </article>
@@ -2216,7 +2205,7 @@
         "Email",
         "Program",
         "Department",
-        "Manager",
+        "Request Routing",
         "Time Off Type",
         "Requested Dates",
         "Business Days",
@@ -2469,6 +2458,30 @@
     return state.requests.filter((request) => request.status === "approved");
   }
 
+  function scheduleApprovedRequests() {
+    const approved = approvedRequests();
+    if (state.scheduleProgramFilter === "all") return approved;
+    return approved.filter((request) => programName(request) === state.scheduleProgramFilter);
+  }
+
+  function scheduleProgramFilterControl() {
+    const availablePrograms = Array.from(new Set(approvedRequests().map(programName))).sort((a, b) => a.localeCompare(b));
+    const options = availablePrograms.length ? availablePrograms : programOptions;
+    if (state.scheduleProgramFilter !== "all" && !options.includes(state.scheduleProgramFilter)) {
+      state.scheduleProgramFilter = "all";
+    }
+
+    return `
+      <label>
+        <span>Program</span>
+        <select data-schedule-control="programFilter">
+          <option value="all" ${state.scheduleProgramFilter === "all" ? "selected" : ""}>All programs</option>
+          ${options.map((program) => `<option value="${escapeHtml(program)}" ${state.scheduleProgramFilter === program ? "selected" : ""}>${escapeHtml(program)}</option>`).join("")}
+        </select>
+      </label>
+    `;
+  }
+
   function employeeRequests() {
     if (!state.employee) return [];
 
@@ -2521,22 +2534,47 @@
     return location.hash.replace("#", "") === "admin" ? "admin" : "employee";
   }
 
+  function renderProgramCheckboxGroups() {
+    document.querySelectorAll("[data-program-checkboxes]").forEach((container) => {
+      container.innerHTML = programCheckboxHtml(container.dataset.programCheckboxes, []);
+    });
+  }
+
+  function programCheckboxHtml(group, selectedPrograms) {
+    const selected = new Set(normalizeProgramList(selectedPrograms));
+    return programOptions
+      .map((program) => {
+        const id = `${group}-${slugify(program)}`;
+        return `
+          <label class="check-row program-check-row" for="${escapeHtml(id)}">
+            <input id="${escapeHtml(id)}" type="checkbox" name="programs" value="${escapeHtml(program)}" data-program-checkbox="${escapeHtml(group)}" ${selected.has(program) ? "checked" : ""} />
+            <span>${escapeHtml(program)}</span>
+          </label>
+        `;
+      })
+      .join("");
+  }
+
   function syncEmployeeProfileForm() {
     const profile = state.employee?.profile || {};
     setFormValue(els.employeeProfileForm, "firstName", profile.first_name);
     setFormValue(els.employeeProfileForm, "lastName", profile.last_name);
     setFormValue(els.employeeProfileForm, "pronouns", profile.pronouns);
-    setFormValue(els.employeeProfileForm, "program", profile.program);
-    setFormValue(els.employeeProfileForm, "manager", profile.manager);
+    syncProgramCheckboxes(els.employeeProfileForm, profilePrograms(profile));
+    syncSupervisorPreview("employee-profile", profilePrograms(profile));
   }
 
   function syncRequestProfileFields() {
     const profile = state.employee?.profile || {};
-    setFormValue(els.requestForm, "firstName", profile.first_name);
-    setFormValue(els.requestForm, "lastName", profile.last_name);
-    setFormValue(els.requestForm, "email", state.employee?.email || profile.email);
-    setFormValue(els.requestForm, "program", profile.program);
-    setFormValue(els.requestForm, "manager", profile.manager);
+    const programs = profilePrograms(profile);
+    const select = els.requestForm.elements.program;
+    if (select) {
+      const current = clean(select.value);
+      select.innerHTML = programs.length
+        ? `<option value="">Select program</option>${programs.map((program) => `<option value="${escapeHtml(program)}">${escapeHtml(program)}</option>`).join("")}`
+        : `<option value="">Add a program in settings first</option>`;
+      select.value = programs.includes(current) ? current : programs[0] || "";
+    }
 
     els.requestForm.querySelectorAll("[data-profile-bound]").forEach((field) => {
       field.disabled = true;
@@ -2548,8 +2586,36 @@
     setFormValue(els.adminProfileForm, "firstName", profile.first_name);
     setFormValue(els.adminProfileForm, "lastName", profile.last_name);
     setFormValue(els.adminProfileForm, "pronouns", profile.pronouns);
-    setFormValue(els.adminProfileForm, "program", profile.program);
-    setFormValue(els.adminProfileForm, "manager", profile.manager);
+    syncProgramCheckboxes(els.adminProfileForm, profilePrograms(profile));
+    syncSupervisorPreview("admin-profile", profilePrograms(profile));
+  }
+
+  function syncProgramCheckboxes(container, programs) {
+    const selected = new Set(normalizeProgramList(programs));
+    container.querySelectorAll("[data-program-checkbox]").forEach((checkbox) => {
+      checkbox.checked = selected.has(checkbox.value);
+    });
+  }
+
+  function syncSupervisorPreviews() {
+    syncSupervisorPreview("register", programsFromForm(els.employeeRegisterForm));
+    syncSupervisorPreview("employee-profile", programsFromForm(els.employeeProfileForm));
+    syncSupervisorPreview("admin-profile", programsFromForm(els.adminProfileForm));
+    document.querySelectorAll("[data-member-edit-row]").forEach(syncMemberEditRoutePreview);
+  }
+
+  function syncSupervisorPreview(key, programs) {
+    const preview = document.querySelector(`[data-supervisor-preview="${key}"]`);
+    if (!preview) return;
+    const summary = supervisorSummaryForPrograms(programs);
+    preview.textContent = summary ? `Requests route to: ${summary}` : "Supervisors will be selected automatically.";
+  }
+
+  function syncMemberEditRoutePreview(row) {
+    const preview = row.querySelector("[data-member-route-preview]");
+    if (!preview) return;
+    const summary = supervisorSummaryForPrograms(programsFromContainer(row));
+    preview.textContent = summary ? `Requests route to: ${summary}` : "Choose at least one program to set routing.";
   }
 
   function syncAdminSiteSettingsForm() {
@@ -2607,11 +2673,65 @@
   }
 
   function missingProfileDetails(profile) {
-    return !profile.first_name || !profile.last_name || !profile.program || !profile.manager;
+    return !profile.first_name || !profile.last_name || !normalizeProgramList(profile.program).length;
   }
 
   function isAllowedProgram(value) {
     return programValues.has(programLabel(value));
+  }
+
+  function normalizeProgramList(value) {
+    const raw = Array.isArray(value)
+      ? value
+      : String(value || "")
+          .split(/[;,|]/)
+          .map((item) => item.trim());
+    const programs = raw.map(programLabel).filter(isAllowedProgram);
+    return Array.from(new Set(programs));
+  }
+
+  function programListValue(programs) {
+    return normalizeProgramList(programs).join("; ");
+  }
+
+  function profilePrograms(profile = {}) {
+    return normalizeProgramList(profile.program || profile.programs);
+  }
+
+  function programsFromForm(form) {
+    return programsFromContainer(form);
+  }
+
+  function programsFromContainer(container) {
+    if (!container) return [];
+    return normalizeProgramList(
+      Array.from(container.querySelectorAll('[data-program-checkbox]:checked')).map((checkbox) => checkbox.value)
+    );
+  }
+
+  function supervisorsForProgram(program) {
+    const label = programLabel(program);
+    return programRouting.find((entry) => entry.program === label)?.supervisors || [];
+  }
+
+  function supervisorSummaryForProgram(program) {
+    return supervisorsForProgram(program)
+      .map((supervisor) => `${supervisor.name} (${supervisor.role})`)
+      .join("; ");
+  }
+
+  function supervisorSummaryForPrograms(programs) {
+    const seen = new Set();
+    return normalizeProgramList(programs)
+      .flatMap(supervisorsForProgram)
+      .filter((supervisor) => {
+        const key = clean(supervisor.email) || `${supervisor.name}:${supervisor.role}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      })
+      .map((supervisor) => `${supervisor.name} (${supervisor.role})`)
+      .join("; ");
   }
 
   function programLabel(value) {
@@ -2619,10 +2739,30 @@
     const labels = {
       "bridge clinic": "Access",
       "wellness access": "Access",
-      "hope outpatient": "Outpatient",
-      "lighthouse recovery": "Recovery",
+      "hope outpatient": "Outpatient Services",
+      outpatient: "Outpatient Services",
+      "lighthouse recovery": "Empowering Mind, Body and Recovery after Challenging Experiences (EMBRACE)",
+      recovery: "Empowering Mind, Body and Recovery after Challenging Experiences (EMBRACE)",
       "shoreline residential": "Shore Haven",
-      "harbor house": "SOS"
+      "harbor house": "Supportive Housing Assistance to Reach Excellence (SHARE)",
+      isc: "Integrated System of Care (ISC)",
+      "integrated system of care": "Integrated System of Care (ISC)",
+      iic: "Intensive In Community Services (IIC)",
+      "intensive in community services": "Intensive In Community Services (IIC)",
+      "intensive in-community services": "Intensive In Community Services (IIC)",
+      "on point/arrive together": "LEAP (Arrive Together, On POINT, Barricaded Subjects)",
+      "on point": "LEAP (Arrive Together, On POINT, Barricaded Subjects)",
+      "arrive together": "LEAP (Arrive Together, On POINT, Barricaded Subjects)",
+      leap: "LEAP (Arrive Together, On POINT, Barricaded Subjects)",
+      beach: "Building Empowerment to Achieve Community Housing (BEACH)",
+      share: "Supportive Housing Assistance to Reach Excellence (SHARE)",
+      wave: "Wellness Assistance Valuing Excellence (WAVE)",
+      path: "Progressive Assistance to Transition from Homelessness (PATH)",
+      hsp: "Housing Supports Program (HSP)",
+      embrace: "Empowering Mind, Body and Recovery after Challenging Experiences (EMBRACE)",
+      hopes: "Healing through Outpatient Personal Education & Support (HOPES)",
+      yrs: "Youth Recovery Services (YRS)",
+      fciu: "Family Crisis Intervention Unit (FCIU)"
     };
     return labels[text.toLowerCase()] || text;
   }
@@ -3148,28 +3288,30 @@
   }
 
   function normalizeProfile(profile = {}, employee = {}) {
+    const programs = normalizeProgramList(profile.program || profile.programs);
     return {
       id: String(profile.id || employee.id || ""),
       email: clean(profile.email || employee.email).toLowerCase(),
       first_name: clean(profile.first_name || profile.firstName),
       last_name: clean(profile.last_name || profile.lastName),
       pronouns: clean(profile.pronouns),
-      program: programLabel(profile.program),
-      manager: clean(profile.manager)
+      program: programs.length ? programListValue(programs) : programLabel(profile.program),
+      manager: programs.length ? supervisorSummaryForPrograms(programs) : clean(profile.manager)
     };
   }
 
   function normalizeAccount(account = {}) {
     const email = clean(account.email).toLowerCase();
     const superAdmin = Boolean(account.is_super_admin || account.isSuperAdmin) || isSuperAdminEmail(email);
+    const programs = normalizeProgramList(account.program || account.programs);
     return {
       id: String(account.id || ""),
       email,
       first_name: clean(account.first_name || account.firstName),
       last_name: clean(account.last_name || account.lastName),
       pronouns: clean(account.pronouns),
-      program: programLabel(account.program),
-      manager: clean(account.manager),
+      program: programs.length ? programListValue(programs) : programLabel(account.program),
+      manager: programs.length ? supervisorSummaryForPrograms(programs) : clean(account.manager),
       account_type: superAdmin ? "super_admin" : account.account_type === "admin" || account.accountType === "admin" ? "admin" : "employee",
       is_super_admin: superAdmin,
       created_at: account.created_at || account.createdAt || "",

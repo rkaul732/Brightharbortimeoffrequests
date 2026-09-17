@@ -8,22 +8,11 @@ Bright Harbor Time Off Requests is a small internal website with two sides:
 
 The time off type choices are **Vacation**, **Sick**, **Personal**, and **Unpaid**.
 
-After an employee signs in, they can update their profile settings: name, pronouns, program, and manager. Employees can only see their own time off requests.
+After an employee signs in, they can update their profile settings: name, pronouns, and the program or programs they work with. Employees do not choose their own manager. The site automatically routes each request to the coordinator, assistant director, and director listed for the program selected on that request. Employees can only see their own time off requests.
 
-The program choices are:
+The program choices come from the supervisor routing list in `public/program-routing.js` and `netlify/functions/_shared/program-routing.mjs`.
 
-- Access
-- ISC
-- Outpatient
-- Front Desk Professionals
-- SOS
-- Shore Haven
-- Recovery
-- Nursing Case Management
-- On Point/Arrive Together
-- ICM Blue
-
-After an admin signs in, they land on a welcome page with three main areas: **New Requests**, **Team Schedule**, and **Reports**. New Requests has tabs for new requests since last sign on, still-pending requests, and completed requests split into **Approved** and **Denied** columns. Team Schedule has tabs for work week, month view, and by employee. Reports has three downloadable spreadsheet files: **By Employee**, **By Program**, and **Request Detail**.
+After an admin signs in, they land on a welcome page with three main areas: **New Requests**, **Team Schedule**, and **Reports**. New Requests has tabs for new requests since last sign on, still-pending requests, and completed requests split into **Approved** and **Denied** columns. Team Schedule has tabs for work week, month view, and by employee, plus a program filter. Reports has three downloadable spreadsheet files: **By Employee**, **By Program**, and **Request Detail**.
 
 The admin side also shows a red flag next to an employee's name when the site detects a request pattern, such as 3 or more requests touching the same weekday within a 6-week period.
 
@@ -232,14 +221,14 @@ This creates the database tables where employee profiles, requests, and admin si
 
 You should see a success message.
 
-If you already ran an older version of this setup file, you can still run the current file again. It will add the employee profile table, the employee account link on requests, the account type field for super admin controls, and any report columns without deleting existing requests.
+If you already ran an older version of this setup file, you can still run the current file again. It will add the employee profile table, the employee account link on requests, the account type field for super admin controls, the pending reminder tracking column, and any report columns without deleting existing requests. It also removes the old one-program-only restriction from employee profiles so employees can select more than one program.
 
 To double-check:
 
 1. In the left sidebar, click **Table Editor**.
 2. Look for a table named `time_off_requests`.
 3. Open it. It should have columns such as `employee_user_id`, `first_name`, `last_name`, `email`, `department`, `program`, `start_date`, `end_date`, and `status`.
-4. Look for a table named `employee_profiles`. This stores each employee's name, pronouns, program, manager, and account type.
+4. Look for a table named `employee_profiles`. This stores each employee's name, pronouns, selected program list, automatic request routing list, and account type.
 5. Also look for a table named `admin_sign_ins`. This stores admin sign-in times so the site can show requests submitted since the admin last signed on.
 
 It is okay if all three tables are empty.
@@ -787,7 +776,7 @@ Check these items:
 
 - The employee email ends in `@brightharbor.org`.
 - The password is at least 8 characters long.
-- The employee completed first name, last name, program, and manager.
+- The employee completed first name, last name, and at least one program.
 - You ran the current `supabase/schema.sql` file after this employee-account update.
 - Supabase Email sign-in is enabled under **Authentication > Providers**.
 - `SUPABASE_SECRET_KEY` is set in Netlify so the site can create employee accounts.
@@ -808,7 +797,7 @@ Check these items:
 - The Resend domain is verified.
 - `RESEND_API_KEY` is set in Netlify.
 - `RESEND_FROM_EMAIL` uses the verified domain.
-- `ADMIN_NOTIFY_EMAIL` is set.
+- The supervisor email addresses in the program routing list are correct. `ADMIN_NOTIFY_EMAIL` is optional and can be used as an extra fallback recipient.
 - You tested with a real email address.
 
 If Resend says you can only send test emails to yourself, finish verifying a sending domain.

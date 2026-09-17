@@ -7,8 +7,13 @@ import {
   isAllowedProgram,
   isValidEmail,
   json,
+  normalizeProgramList,
   preflight,
-  readJson
+  programLabel,
+  readJson,
+  supervisorEmailsForProgram,
+  supervisorSummaryForProgram,
+  uniqueEmails
 } from "./_shared/http.mjs";
 import { escapeHtml, sendEmail } from "./_shared/resend.mjs";
 import { readEmployeeProfile, supabaseRest, verifyEmployee } from "./_shared/supabase.mjs";
@@ -43,14 +48,23 @@ export async function handler(event) {
 }
 
 function buildRequest(body, employee, profile) {
+  const profilePrograms = normalizeProgramList(profile.program || profile.programs);
+  const requestedProgram = programLabel(body.program);
+  if (!profilePrograms.length) {
+    throw httpError(400, "Complete your profile settings before submitting a request.");
+  }
+  if (!profilePrograms.includes(requestedProgram)) {
+    throw httpError(400, "Choose one of the programs saved in your profile.");
+  }
+
   const request = {
     employee_user_id: employee.id,
     first_name: clean(profile.first_name),
     last_name: clean(profile.last_name),
     email: employee.email,
     department: clean(body.department),
-    program: clean(profile.program) || clean(body.department),
-    manager: clean(profile.manager),
+    program: requestedProgram,
+    manager: supervisorSummaryForProgram(requestedProgram),
     time_off_type: timeOffTypeLabel(body.time_off_type),
     start_date: clean(body.start_date),
     end_date: clean(body.end_date),
@@ -98,13 +112,13 @@ function timeOffTypeLabel(value) {
 }
 
 async function notifyAdmins(request) {
-  const to = process.env.ADMIN_NOTIFY_EMAIL;
+  const to = uniqueEmails([...(process.env.ADMIN_NOTIFY_EMAIL || "").split(","), ...supervisorEmailsForProgram(request.program)]);
   const subject = `Time off request: ${request.first_name} ${request.last_name}`;
   const html = `
     <h1>New time off request</h1>
     <p><strong>${escapeHtml(request.first_name)} ${escapeHtml(request.last_name)}</strong> submitted ${escapeHtml(request.time_off_type)}.</p>
     <p>${escapeHtml(request.start_date)} to ${escapeHtml(request.end_date)} (${escapeHtml(request.business_days)} business days)</p>
-    <p>Program: ${escapeHtml(request.program)}<br>Department: ${escapeHtml(request.department)}<br>Manager: ${escapeHtml(request.manager)}</p>
+    <p>Program: ${escapeHtml(request.program)}<br>Department: ${escapeHtml(request.department)}<br>Request routing: ${escapeHtml(request.manager)}</p>
     ${request.reason ? `<p>Notes: ${escapeHtml(request.reason)}</p>` : ""}
   `;
   await sendEmail({ to, subject, html });

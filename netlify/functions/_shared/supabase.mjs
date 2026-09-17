@@ -1,4 +1,4 @@
-import { clean, httpError, isAllowedProgram, isValidEmail, programLabel } from "./http.mjs";
+import { clean, httpError, normalizeProgramList, programLabel, programListValue, supervisorSummaryForPrograms, isValidEmail } from "./http.mjs";
 
 const brightHarborDomain = "@brightharbor.org";
 const defaultSuperAdminEmail = "hr@brightharbor.org";
@@ -214,14 +214,15 @@ export function assertBrightHarborEmail(email) {
 }
 
 export function normalizeEmployeeProfile(user, profile = {}) {
+  const programs = normalizeProgramList(profile.program || profile.programs);
   const normalized = {
     id: user.id,
     email: clean(user.email || profile.email).toLowerCase(),
     first_name: clean(profile.first_name || profile.firstName),
     last_name: clean(profile.last_name || profile.lastName),
     pronouns: clean(profile.pronouns),
-    program: programLabel(profile.program),
-    manager: clean(profile.manager)
+    program: programs.length ? programListValue(programs) : programLabel(profile.program),
+    manager: programs.length ? supervisorSummaryForPrograms(programs) : clean(profile.manager)
   };
   if (Object.prototype.hasOwnProperty.call(profile, "account_type") || Object.prototype.hasOwnProperty.call(profile, "accountType")) {
     normalized.account_type = normalizeAccountType(profile.account_type || profile.accountType);
@@ -238,9 +239,6 @@ export async function readEmployeeProfile(user) {
 export async function upsertEmployeeProfile(user, profile) {
   const normalized = normalizeEmployeeProfile(user, profile);
   assertBrightHarborEmail(normalized.email);
-  if (normalized.program && !isAllowedProgram(normalized.program)) {
-    throw httpError(400, "Choose a valid program.");
-  }
 
   const rows = await supabaseRest("employee_profiles?on_conflict=id&select=*", {
     method: "POST",

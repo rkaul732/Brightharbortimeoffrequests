@@ -31,6 +31,9 @@ alter table public.time_off_requests
 alter table public.time_off_requests
   add column if not exists employee_user_id uuid references auth.users(id) on delete set null;
 
+alter table public.time_off_requests
+  add column if not exists pending_reminder_sent_at timestamptz;
+
 alter table public.time_off_requests enable row level security;
 
 create table if not exists public.employee_profiles (
@@ -69,6 +72,9 @@ alter table public.employee_profiles
   add column if not exists account_type text not null default 'employee';
 
 alter table public.employee_profiles
+  drop constraint if exists employee_profiles_program_check;
+
+alter table public.employee_profiles
   drop constraint if exists employee_profiles_account_type_check;
 
 alter table public.employee_profiles
@@ -96,6 +102,10 @@ create index if not exists time_off_requests_program_idx
 
 create index if not exists time_off_requests_employee_user_idx
   on public.time_off_requests (employee_user_id);
+
+create index if not exists time_off_requests_pending_reminder_idx
+  on public.time_off_requests (status, created_at)
+  where pending_reminder_sent_at is null;
 
 create index if not exists employee_profiles_name_idx
   on public.employee_profiles (last_name, first_name);

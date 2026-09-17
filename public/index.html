@@ -49,7 +49,7 @@
             <div>
               <p class="eyebrow">Bright Harbor Time Off Requests</p>
               <h1 id="employee-heading">Request time away with a clear trail.</h1>
-              <p class="lede">Submit vacation, sick, personal, or unpaid time off for manager and admin review.</p>
+              <p class="lede">Submit vacation, sick, personal, or unpaid time off for supervisor and admin review.</p>
             </div>
             <div class="mini-calendar" aria-hidden="true">
               <div class="mini-calendar-head">
@@ -112,27 +112,13 @@
                     <span>Pronouns</span>
                     <input name="pronouns" autocomplete="off" />
                   </label>
-                  <label>
-                    <span>Program</span>
-                    <select name="program" required>
-                      <option value="">Select program</option>
-                      <option>Access</option>
-                      <option>ISC</option>
-                      <option>Outpatient</option>
-                      <option>Front Desk Professionals</option>
-                      <option>SOS</option>
-                      <option>Shore Haven</option>
-                      <option>Recovery</option>
-                      <option>Nursing Case Management</option>
-                      <option>On Point/Arrive Together</option>
-                      <option>ICM Blue</option>
-                    </select>
-                  </label>
                 </div>
-                <label>
-                  <span>Manager</span>
-                  <input name="manager" autocomplete="off" required />
-                </label>
+                <div class="field-block">
+                  <span class="field-label">Program(s)</span>
+                  <div id="register-program-options" class="program-checkbox-grid" data-program-checkboxes="register"></div>
+                  <p class="field-hint">Choose at least one program you work with.</p>
+                </div>
+                <div class="route-preview" data-supervisor-preview="register">Supervisors will be selected automatically.</div>
                 <button class="primary-button" type="submit">Create account</button>
               </form>
 
@@ -175,28 +161,12 @@
                     <input name="pronouns" autocomplete="off" />
                   </label>
                 </div>
-                <div class="field-grid two">
-                  <label>
-                    <span>Program</span>
-                    <select name="program" required>
-                      <option value="">Select program</option>
-                      <option>Access</option>
-                      <option>ISC</option>
-                      <option>Outpatient</option>
-                      <option>Front Desk Professionals</option>
-                      <option>SOS</option>
-                      <option>Shore Haven</option>
-                      <option>Recovery</option>
-                      <option>Nursing Case Management</option>
-                      <option>On Point/Arrive Together</option>
-                      <option>ICM Blue</option>
-                    </select>
-                  </label>
-                  <label>
-                    <span>Manager</span>
-                    <input name="manager" autocomplete="off" required />
-                  </label>
+                <div class="field-block">
+                  <span class="field-label">Program(s)</span>
+                  <div id="employee-profile-program-options" class="program-checkbox-grid" data-program-checkboxes="employee-profile"></div>
+                  <p class="field-hint">These choices control which program appears when you request time off.</p>
                 </div>
+                <div class="route-preview" data-supervisor-preview="employee-profile">Supervisors will be selected automatically.</div>
                 <div class="form-footer">
                   <p id="employee-profile-message" class="form-message" role="status" aria-live="polite"></p>
                   <button class="secondary-button" type="submit">Save profile</button>
@@ -210,7 +180,11 @@
                 <p>Requests start as in review.</p>
               </div>
 
-              <div class="field-grid two">
+              <div class="field-grid three">
+                <label>
+                  <span>Program requesting off from</span>
+                  <select name="program" required></select>
+                </label>
                 <label>
                   <span>Department</span>
                   <select name="department" required>
@@ -256,7 +230,7 @@
 
               <label>
                 <span>Notes</span>
-                <textarea name="reason" rows="4" placeholder="Add context for your manager or admin."></textarea>
+                <textarea name="reason" rows="4" placeholder="Add context for the people reviewing your request."></textarea>
               </label>
 
               <div class="form-footer">
@@ -441,28 +415,12 @@
                     <input name="pronouns" autocomplete="off" />
                   </label>
                 </div>
-                <div class="field-grid two">
-                  <label>
-                    <span>Program</span>
-                    <select name="program" required>
-                      <option value="">Select program</option>
-                      <option>Access</option>
-                      <option>ISC</option>
-                      <option>Outpatient</option>
-                      <option>Front Desk Professionals</option>
-                      <option>SOS</option>
-                      <option>Shore Haven</option>
-                      <option>Recovery</option>
-                      <option>Nursing Case Management</option>
-                      <option>On Point/Arrive Together</option>
-                      <option>ICM Blue</option>
-                    </select>
-                  </label>
-                  <label>
-                    <span>Manager</span>
-                    <input name="manager" autocomplete="off" required />
-                  </label>
+                <div class="field-block">
+                  <span class="field-label">Program(s)</span>
+                  <div id="admin-profile-program-options" class="program-checkbox-grid" data-program-checkboxes="admin-profile"></div>
+                  <p class="field-hint">Your reviewer access comes from the supervisor list and account type.</p>
                 </div>
+                <div class="route-preview" data-supervisor-preview="admin-profile">Supervisors will be selected automatically.</div>
                 <div class="form-footer">
                   <p id="admin-profile-message" class="form-message" role="status" aria-live="polite"></p>
                   <button class="secondary-button" type="submit">Save profile</button>
@@ -520,6 +478,7 @@
       </div>
     </div>
 
+    <script src="/program-routing.js"></script>
     <script src="/app.js"></script>
   </body>
 </html>

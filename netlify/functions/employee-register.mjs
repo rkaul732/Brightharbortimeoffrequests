@@ -1,4 +1,15 @@
-import { assertAllowedProgram, assertMethod, clean, handleError, httpError, json, preflight, readJson } from "./_shared/http.mjs";
+import {
+  assertMethod,
+  clean,
+  handleError,
+  httpError,
+  json,
+  preflight,
+  programListValue,
+  readJson,
+  requireProgramList,
+  supervisorSummaryForPrograms
+} from "./_shared/http.mjs";
 import {
   assertBrightHarborEmail,
   createAuthUser,
@@ -22,15 +33,15 @@ export async function handler(event) {
       throw httpError(400, "Choose a password with at least 8 characters.");
     }
 
+    const programs = requireProgramList(body.programs || body.program);
     const profileInput = {
       first_name: clean(body.first_name),
       last_name: clean(body.last_name),
       pronouns: clean(body.pronouns),
-      program: clean(body.program),
-      manager: clean(body.manager)
+      program: programListValue(programs),
+      manager: supervisorSummaryForPrograms(programs)
     };
     requireProfile(profileInput);
-    assertAllowedProgram(profileInput.program);
 
     const createdUser = await createAuthUser(email, password, profileInput);
     const user = {
@@ -58,7 +69,7 @@ export async function handler(event) {
 }
 
 function requireProfile(profile) {
-  if (!profile.first_name || !profile.last_name || !profile.program || !profile.manager) {
-    throw httpError(400, "Complete your name, program, and manager.");
+  if (!profile.first_name || !profile.last_name || !profile.program) {
+    throw httpError(400, "Complete your name and choose at least one program.");
   }
 }

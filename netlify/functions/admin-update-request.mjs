@@ -1,4 +1,15 @@
-import { assertMethod, clean, handleError, httpError, json, preflight, readJson } from "./_shared/http.mjs";
+import {
+  assertMethod,
+  canReviewProgram,
+  clean,
+  handleError,
+  httpError,
+  json,
+  preflight,
+  readJson,
+  supervisorEmailsForProgram,
+  uniqueEmails
+} from "./_shared/http.mjs";
 import { escapeHtml, sendEmail } from "./_shared/resend.mjs";
 import { supabaseRest, verifyAdmin } from "./_shared/supabase.mjs";
 
@@ -21,6 +32,9 @@ export async function handler(event) {
 
     const existing = await supabaseRest(`time_off_requests?id=eq.${encodeURIComponent(id)}&select=*`);
     if (!existing.length) throw httpError(404, "Request was not found.");
+    if (!admin.is_super_admin && !canReviewProgram(admin.email, existing[0].program)) {
+      throw httpError(403, "You can only update requests routed to your programs.");
+    }
 
     const rows = await supabaseRest(`time_off_requests?id=eq.${encodeURIComponent(id)}&select=*`, {
       method: "PATCH",
@@ -35,6 +49,7 @@ export async function handler(event) {
 
     const updated = rows[0];
     await notifyEmployee(updated);
+    await notifySupervisors(updated, admin);
     return json(200, { request: updated });
   } catch (error) {
     return handleError(error);
@@ -52,6 +67,27 @@ async function notifyEmployee(request) {
     ${request.decision_note ? `<p>Note: ${escapeHtml(request.decision_note)}</p>` : ""}
   `;
   await sendEmail({ to: request.email, subject, html });
+}
+
+async function notifySupervisors(request, admin) {
+  const to = uniqueEmails(supervisorEmailsForProgram(request.program));
+  const subject = `Time off request ${statusLabels(request.status)}: ${request.first_name} ${request.last_name}`;
+  const html = `
+    <h1>Time off request update</h1>
+    <p><strong>${escapeHtml(request.first_name)} ${escapeHtml(request.last_name)}</strong>'s request is now <strong>${escapeHtml(statusLabels(request.status))}</strong>.</p>
+    <p>${escapeHtml(request.start_date)} to ${escapeHtml(request.end_date)} (${escapeHtml(request.business_days)} business days)</p>
+    <p>Program: ${escapeHtml(request.program)}<br>Updated by: ${escapeHtml(admin.email)}</p>
+    ${request.decision_note ? `<p>Note: ${escapeHtml(request.decision_note)}</p>` : ""}
+  `;
+  await sendEmail({ to, subject, html });
+}
+
+function statusLabels(status) {
+  return {
+    in_review: "in review",
+    approved: "approved",
+    denied: "denied"
+  }[status] || status;
 }
 
 function timeOffTypeLabel(value) {

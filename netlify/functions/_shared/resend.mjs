@@ -1,7 +1,14 @@
 export async function sendEmail({ to, subject, html }) {
   const apiKey = process.env.RESEND_API_KEY;
   const from = process.env.RESEND_FROM_EMAIL;
-  if (!apiKey || !from || !to) {
+  const recipients = Array.isArray(to)
+    ? to.map((item) => String(item || "").trim()).filter(Boolean)
+    : String(to || "")
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean);
+
+  if (!apiKey || !from || !recipients.length) {
     return { skipped: true };
   }
 
@@ -13,7 +20,7 @@ export async function sendEmail({ to, subject, html }) {
     },
     body: JSON.stringify({
       from,
-      to,
+      to: recipients.length === 1 ? recipients[0] : recipients,
       subject,
       html
     })

@@ -38,7 +38,7 @@ class BrightHarborHandler(SimpleHTTPRequestHandler):
 
 def make_server(port):
     handler = partial(BrightHarborHandler, directory=str(PUBLIC))
-    return ThreadingHTTPServer(("", port), handler)
+    return ThreadingHTTPServer(("127.0.0.1", port), handler)
 
 
 def main():

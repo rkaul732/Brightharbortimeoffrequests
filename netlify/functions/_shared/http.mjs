@@ -1,3 +1,19 @@
+import {
+  canReviewProgram,
+  isAllowedProgram,
+  normalizeProgramList,
+  programLabel,
+  programListValue,
+  programOptions,
+  requireProgramList,
+  supervisorEmailsForProgram,
+  supervisorEmailsForPrograms,
+  supervisorSummaryForProgram,
+  supervisorSummaryForPrograms,
+  supervisorsForProgram,
+  uniqueEmails
+} from "./program-routing.mjs";
+
 const corsHeaders = {
   "access-control-allow-origin": "*",
   "access-control-allow-headers": "authorization, content-type",
@@ -46,36 +62,21 @@ export function clean(value) {
   return String(value || "").trim();
 }
 
-export const programOptions = [
-  "Access",
-  "ISC",
-  "Outpatient",
-  "Front Desk Professionals",
-  "SOS",
-  "Shore Haven",
-  "Recovery",
-  "Nursing Case Management",
-  "On Point/Arrive Together",
-  "ICM Blue"
-];
-
-const programAliases = {
-  "bridge clinic": "Access",
-  "wellness access": "Access",
-  "hope outpatient": "Outpatient",
-  "lighthouse recovery": "Recovery",
-  "shoreline residential": "Shore Haven",
-  "harbor house": "SOS"
+export {
+  canReviewProgram,
+  isAllowedProgram,
+  normalizeProgramList,
+  programLabel,
+  programListValue,
+  programOptions,
+  requireProgramList,
+  supervisorEmailsForProgram,
+  supervisorEmailsForPrograms,
+  supervisorSummaryForProgram,
+  supervisorSummaryForPrograms,
+  supervisorsForProgram,
+  uniqueEmails
 };
-
-export function programLabel(value) {
-  const text = clean(value);
-  return programAliases[text.toLowerCase()] || text;
-}
-
-export function isAllowedProgram(value) {
-  return programOptions.includes(programLabel(value));
-}
 
 export function assertAllowedProgram(value) {
   if (!isAllowedProgram(value)) {
