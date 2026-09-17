@@ -1,5 +1,5 @@
 import { assertMethod, clean, handleError, httpError, isValidEmail, json, preflight, readJson } from "./_shared/http.mjs";
-import { adminAccessForUser, passwordGrant, supabaseRest } from "./_shared/supabase.mjs";
+import { adminAccessForUser, passwordGrant, supabaseProjectRef, supabaseRest } from "./_shared/supabase.mjs";
 
 export async function handler(event) {
   const options = preflight(event);
@@ -15,11 +15,20 @@ export async function handler(event) {
       throw httpError(400, "Enter an admin email and password.");
     }
 
-    const session = await passwordGrant(
-      email,
-      password,
-      "Supabase rejected this email/password before admin access was checked. Confirm the user exists in Supabase Authentication, the email is confirmed, and the password was set in the same Supabase project connected to Netlify."
-    );
+    let session;
+    try {
+      session = await passwordGrant(
+        email,
+        password,
+        "Supabase rejected this email/password before admin access was checked. Confirm the user exists in Supabase Authentication, the email is confirmed, and the password was set in the same Supabase project connected to Netlify."
+      );
+    } catch (error) {
+      const projectRef = supabaseProjectRef();
+      if (error.statusCode === 401 && projectRef) {
+        throw httpError(error.statusCode, `${error.message} Connected Supabase project ref: ${projectRef}.`);
+      }
+      throw error;
+    }
     const access = await adminAccessForUser(session.user || {});
     const userEmail = access.email;
 

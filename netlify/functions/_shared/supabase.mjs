@@ -24,6 +24,16 @@ export function hasSupabaseConfig() {
   );
 }
 
+export function supabaseProjectRef() {
+  const supabaseUrl = clean(process.env.SUPABASE_URL).replace(/\/$/, "");
+  if (!supabaseUrl) return "";
+  try {
+    return new URL(supabaseUrl).hostname.split(".")[0] || "";
+  } catch (error) {
+    return "";
+  }
+}
+
 export async function supabaseRest(path, options = {}) {
   const supabaseUrl = requiredAny(["SUPABASE_URL"], "SUPABASE_URL").replace(/\/$/, "");
   const serviceRoleKey = requiredAny(["SUPABASE_SECRET_KEY", "SUPABASE_SERVICE_ROLE_KEY"], "SUPABASE_SECRET_KEY");

@@ -720,6 +720,20 @@ Use this checklist:
 10. Confirm email/password sign-in is enabled.
 11. Try signing in again on the live Netlify link, not the `127.0.0.1` local preview link.
 
+If that still does not work, recreate the auth user instead of editing the old one:
+
+1. In Supabase, go to **Authentication > Users**.
+2. Delete the problem user from **Authentication > Users** only.
+3. Click **Add user**.
+4. Choose **Create new user**, not invitation.
+5. Enter the email address.
+6. Enter the password.
+7. Make sure the user is confirmed, or choose the option to auto-confirm the user if Supabase shows one.
+8. Save the user.
+9. Try signing in again on the live Netlify link.
+
+Do this for `hr@brightharbor.org` first so the super admin can sign in. After that, use **Account Types** to make other users admins.
+
 If the employee side also rejects the same email/password, it is definitely a Supabase email/password problem. If the employee side signs in but the admin side says the account is not an admin, then the password is correct and the account still needs admin access.
 
 ### Employee Account Creation Fails
