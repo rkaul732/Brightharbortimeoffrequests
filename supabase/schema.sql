@@ -13,6 +13,9 @@ create table if not exists public.time_off_requests (
   start_date date not null,
   end_date date not null,
   partial_day text not null default 'Full days',
+  start_time time,
+  end_time time,
+  requested_hours numeric(5, 2),
   business_days numeric(4, 1) not null,
   reason text default '',
   status text not null default 'in_review',
@@ -33,6 +36,15 @@ alter table public.time_off_requests
 
 alter table public.time_off_requests
   add column if not exists pending_reminder_sent_at timestamptz;
+
+alter table public.time_off_requests
+  add column if not exists start_time time;
+
+alter table public.time_off_requests
+  add column if not exists end_time time;
+
+alter table public.time_off_requests
+  add column if not exists requested_hours numeric(5, 2);
 
 alter table public.time_off_requests enable row level security;
 

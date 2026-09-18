@@ -547,6 +547,15 @@ label {
   padding: 10px 12px;
 }
 
+.specific-hours-fields {
+  background: rgba(238, 245, 251, 0.58);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+}
+
 input,
 select,
 textarea {
@@ -1151,8 +1160,22 @@ output {
 }
 
 .inline-decision input,
-.inline-decision select {
+.inline-decision select,
+.inline-decision textarea {
   min-height: 38px;
+}
+
+.inline-decision textarea[data-decision-note] {
+  line-height: 1.4;
+  max-height: 220px;
+  min-height: 38px;
+  overflow: auto;
+  resize: vertical;
+}
+
+.inline-decision textarea[data-decision-note]:focus {
+  grid-column: 1 / -1;
+  min-height: 128px;
 }
 
 .account-type-control {

@@ -245,6 +245,7 @@
     popupAlertMessage: document.querySelector("#popup-alert-message"),
     popupAlertClose: document.querySelector("#popup-alert-close"),
     requestForm: document.querySelector("#request-form"),
+    specificHoursFields: document.querySelector("#specific-hours-fields"),
     requestMessage: document.querySelector("#request-message"),
     daysOutput: document.querySelector("#days-output"),
     employeeRequestList: document.querySelector("#employee-request-list"),
@@ -389,6 +390,12 @@
     });
 
     els.requestForm.addEventListener("input", () => {
+      updateSpecificHoursFields();
+      updateBusinessDayOutput();
+    });
+
+    els.requestForm.addEventListener("change", () => {
+      updateSpecificHoursFields();
       updateBusinessDayOutput();
     });
 
@@ -685,6 +692,13 @@
     }
 
     const profile = state.employee.profile || {};
+    const partialDay = clean(formData.get("partialDay"));
+    const specificHours = isSpecificHours(partialDay);
+    const startDate = clean(formData.get("startDate"));
+    const endDate = specificHours ? startDate : clean(formData.get("endDate"));
+    const startTime = specificHours ? clean(formData.get("startTime")) : "";
+    const endTime = specificHours ? clean(formData.get("endTime")) : "";
+    const requestedHours = specificHours ? calculateRequestedHours(startTime, endTime) : 0;
     const payload = {
       employee_user_id: state.employee.id || "",
       first_name: clean(profile.first_name) || clean(formData.get("firstName")),
@@ -694,11 +708,14 @@
       program: clean(formData.get("program")),
       manager: supervisorSummaryForProgram(formData.get("program")),
       time_off_type: timeOffTypeLabel(formData.get("timeOffType")),
-      start_date: clean(formData.get("startDate")),
-      end_date: clean(formData.get("endDate")),
-      partial_day: clean(formData.get("partialDay")),
+      start_date: startDate,
+      end_date: endDate,
+      partial_day: partialDay,
+      start_time: startTime,
+      end_time: endTime,
+      requested_hours: requestedHours,
       reason: clean(formData.get("reason")),
-      business_days: calculateBusinessDays(formData.get("startDate"), formData.get("endDate"), formData.get("partialDay")),
+      business_days: calculateBusinessDays(startDate, endDate, partialDay, startTime, endTime),
       status: "in_review"
     };
 
@@ -721,6 +738,7 @@
       }
       els.requestForm.reset();
       syncRequestProfileFields();
+      updateSpecificHoursFields();
       updateBusinessDayOutput();
       renderAll();
       setMessage(els.requestMessage, "Request submitted for review.", "success");
@@ -728,6 +746,7 @@
       setMessage(els.requestMessage, error.message || "Could not submit the request.", "error");
     } finally {
       toggleForm(els.requestForm, false);
+      updateSpecificHoursFields();
     }
   }
 
@@ -1433,6 +1452,7 @@
     els.employeeEmailLine.textContent = state.employee.email || profile.email || "";
     syncEmployeeProfileForm();
     syncRequestProfileFields();
+    updateSpecificHoursFields();
     renderEmployeeSettings();
     renderEmployeeSummary();
   }
@@ -1972,7 +1992,7 @@
         </div>
         <div>
           <span class="table-label">Requested off</span>
-          <span>${formatDateRange(request.start_date, request.end_date)}</span>
+          <span>${escapeHtml(requestTimeSummary(request))}</span>
         </div>
         <div>
           <span class="table-label">Submitted</span>
@@ -1987,7 +2007,7 @@
           <select aria-label="Approval type for ${escapeHtml(request.first_name)} ${escapeHtml(request.last_name)}" data-status-select>
             ${statusValues.map((status) => `<option value="${status}" ${request.status === status ? "selected" : ""}>${statusLabels[status]}</option>`).join("")}
           </select>
-          <input aria-label="Decision note" value="${escapeHtml(request.decision_note || "")}" placeholder="Decision note" data-decision-note />
+          <textarea aria-label="Decision note" rows="1" placeholder="Decision note" data-decision-note>${escapeHtml(request.decision_note || "")}</textarea>
           <button class="status-save" type="button" data-save-status="${escapeHtml(request.id)}">Save</button>
         </div>
       </article>
@@ -2006,7 +2026,7 @@
           </div>
           <span class="status-pill ${request.status}">${statusLabels[request.status]}</span>
         </header>
-        <div class="meta-line">${formatDateRange(request.start_date, request.end_date)} - ${request.business_days} business ${request.business_days === 1 ? "day" : "days"}</div>
+        <div class="meta-line">${escapeHtml(requestTimeSummary(request))} - ${escapeHtml(requestAmountSummary(request))}</div>
         <div class="meta-line">Submitted: ${escapeHtml(formatDateTime(request.created_at))}</div>
         ${detailed ? `<div class="meta-line">${escapeHtml(request.email)} - Request routing: ${escapeHtml(request.manager)}</div>` : ""}
         ${request.reason ? `<p>${escapeHtml(request.reason)}</p>` : ""}
@@ -2034,7 +2054,7 @@
     return `
       <span class="calendar-request approved">
         <strong class="name-with-flag">${escapeHtml(employeeName(request))}${patternFlagBadge(flag)}</strong>
-        ${escapeHtml(programName(request))} - ${escapeHtml(request.time_off_type)}
+        ${escapeHtml(programName(request))} - ${escapeHtml(request.time_off_type)} - ${escapeHtml(requestAmountSummary(request))}
       </span>
     `;
   }
@@ -2056,7 +2076,7 @@
   function approvalDateRow(request) {
     return `
       <div class="approval-date-row">
-        <span>${formatDateRange(request.start_date, request.end_date)}</span>
+        <span>${escapeHtml(requestTimeSummary(request))}</span>
         <button class="rescind-button" type="button" data-rescind-approval="${escapeHtml(request.id)}">
           <span aria-hidden="true">&#9995;</span> RESCIND APPROVAL
         </button>
@@ -2236,7 +2256,7 @@
         "Request Routing",
         "Time Off Type",
         "Requested Dates",
-        "Business Days",
+        "Amount Requested",
         "Status",
         "Request Lead Time (Days)",
         "Decision Note"
@@ -2256,8 +2276,8 @@
           request.department,
           request.manager,
           request.time_off_type,
-          formatDateRange(request.start_date, request.end_date),
-          request.business_days,
+          requestTimeSummary(request),
+          requestAmountSummary(request),
           statusLabels[request.status],
           requestLeadTimeDays(request),
           request.decision_note
@@ -2832,6 +2852,21 @@
     return programLabel(request.program) || request.department || "Unassigned";
   }
 
+  function requestTimeSummary(request) {
+    const dateRange = formatDateRange(request.start_date, request.end_date);
+    if (!isSpecificHours(request.partial_day)) return dateRange;
+    const timeRange = [formatTime(request.start_time), formatTime(request.end_time)].filter(Boolean).join(" to ");
+    return timeRange ? `${dateRange}, ${timeRange}` : dateRange;
+  }
+
+  function requestAmountSummary(request) {
+    if (isSpecificHours(request.partial_day)) {
+      const hours = Number(request.requested_hours || 0);
+      return hours > 0 ? `${formatHours(hours)} ${hours === 1 ? "hour" : "hours"}` : "Specific hours";
+    }
+    return `${request.business_days} business ${request.business_days === 1 ? "day" : "days"}`;
+  }
+
   function timeOffTypeLabel(value) {
     const text = clean(value);
     const key = text.toLowerCase();
@@ -2912,11 +2947,51 @@
 
   function updateBusinessDayOutput() {
     const formData = new FormData(els.requestForm);
-    const days = calculateBusinessDays(formData.get("startDate"), formData.get("endDate"), formData.get("partialDay"));
+    const partialDay = clean(formData.get("partialDay"));
+    const specificHours = isSpecificHours(partialDay);
+    const startDate = clean(formData.get("startDate"));
+    const endDate = specificHours ? startDate : clean(formData.get("endDate"));
+    const startTime = clean(formData.get("startTime"));
+    const endTime = clean(formData.get("endTime"));
+    const days = calculateBusinessDays(startDate, endDate, partialDay, startTime, endTime);
+    if (specificHours) {
+      const hours = calculateRequestedHours(startTime, endTime);
+      els.daysOutput.textContent = hours > 0 ? `Request ${formatHours(hours)} hours` : "Request 0 hours";
+      return;
+    }
     els.daysOutput.textContent = `Request ${days} business ${days === 1 ? "day" : "days"}`;
   }
 
-  function calculateBusinessDays(startValue, endValue, partialDay) {
+  function updateSpecificHoursFields() {
+    const partialDay = clean(els.requestForm.elements.partialDay?.value);
+    const specificHours = isSpecificHours(partialDay);
+    els.specificHoursFields.hidden = !specificHours;
+    const endDateField = els.requestForm.elements.endDate;
+    const startDateField = els.requestForm.elements.startDate;
+
+    if (specificHours && startDateField && endDateField) {
+      endDateField.value = startDateField.value;
+      endDateField.disabled = true;
+    } else if (endDateField) {
+      endDateField.disabled = false;
+    }
+
+    els.specificHoursFields.querySelectorAll("input").forEach((field) => {
+      field.required = specificHours;
+      if (!specificHours) field.value = "";
+    });
+  }
+
+  function isSpecificHours(partialDay) {
+    return clean(partialDay).toLowerCase() === "specific hours";
+  }
+
+  function calculateBusinessDays(startValue, endValue, partialDay, startTime = "", endTime = "") {
+    if (isSpecificHours(partialDay)) {
+      const hours = calculateRequestedHours(startTime, endTime);
+      return hours > 0 ? Math.max(0.1, Math.round((hours / 8) * 10) / 10) : 0;
+    }
+
     const start = parseLocalDate(startValue);
     const end = parseLocalDate(endValue);
     if (!start || !end || start > end) return 0;
@@ -2929,12 +3004,40 @@
     return days;
   }
 
+  function calculateRequestedHours(startTime, endTime) {
+    const start = minutesFromTime(startTime);
+    const end = minutesFromTime(endTime);
+    if (start === null || end === null || end <= start) return 0;
+    return (end - start) / 60;
+  }
+
+  function minutesFromTime(value) {
+    const match = /^(\d{2}):(\d{2})$/.exec(clean(value));
+    if (!match) return null;
+    const hours = Number(match[1]);
+    const minutes = Number(match[2]);
+    if (hours > 23 || minutes > 59) return null;
+    return hours * 60 + minutes;
+  }
+
+  function formatHours(hours) {
+    return Number(hours || 0)
+      .toFixed(2)
+      .replace(/\.00$/, "")
+      .replace(/0$/, "");
+  }
+
   function validateRequest(payload) {
     const required = ["first_name", "last_name", "email", "department", "program", "manager", "time_off_type", "start_date", "end_date", "partial_day"];
     if (required.some((key) => !payload[key])) return "Complete all required fields.";
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(payload.email)) return "Enter a valid email address.";
     if (!isBrightHarborEmail(payload.email)) return "Use your Bright Harbor email address.";
     if (!isAllowedProgram(payload.program)) return "Choose a valid program.";
+    if (isSpecificHours(payload.partial_day)) {
+      if (!payload.start_time || !payload.end_time) return "Enter the start and end time for the specific hours request.";
+      if (!payload.requested_hours || payload.requested_hours <= 0) return "Enter an end time that is after the start time.";
+      if (payload.start_date !== payload.end_date) return "Specific hours requests must take place on one date.";
+    }
     if (!payload.business_days || payload.business_days <= 0) return "Choose dates that include at least one business day.";
     return "";
   }
@@ -3311,6 +3414,9 @@
       start_date: request.start_date || request.startDate || "",
       end_date: request.end_date || request.endDate || "",
       partial_day: request.partial_day || request.partialDay || "Full days",
+      start_time: request.start_time || request.startTime || "",
+      end_time: request.end_time || request.endTime || "",
+      requested_hours: Number(request.requested_hours || request.requestedHours || 0),
       business_days: Number(request.business_days || request.businessDays || 0),
       reason: request.reason || "",
       decision_note: request.decision_note || request.decisionNote || "",
@@ -3441,6 +3547,16 @@
       hour: "numeric",
       minute: "2-digit"
     });
+  }
+
+  function formatTime(value) {
+    const minutes = minutesFromTime(value);
+    if (minutes === null) return "";
+    const hours24 = Math.floor(minutes / 60);
+    const mins = minutes % 60;
+    const suffix = hours24 >= 12 ? "PM" : "AM";
+    const hours12 = hours24 % 12 || 12;
+    return `${hours12}:${String(mins).padStart(2, "0")} ${suffix}`;
   }
 
   function setMessage(element, text, type) {

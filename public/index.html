@@ -224,8 +224,23 @@
                     <option>Full days</option>
                     <option>Morning half day</option>
                     <option>Afternoon half day</option>
+                    <option>Specific hours</option>
                   </select>
                 </label>
+              </div>
+
+              <div id="specific-hours-fields" class="specific-hours-fields" hidden>
+                <div class="field-grid two">
+                  <label>
+                    <span>Out from</span>
+                    <input name="startTime" type="time" />
+                  </label>
+                  <label>
+                    <span>Return at</span>
+                    <input name="endTime" type="time" />
+                  </label>
+                </div>
+                <p class="field-hint">For specific hours, use the date above and enter the time frame you will be out.</p>
               </div>
 
               <label>

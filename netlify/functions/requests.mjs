@@ -5,12 +5,14 @@ import {
   handleError,
   httpError,
   isAllowedProgram,
+  isSpecificHours,
   isValidEmail,
   json,
   normalizeProgramList,
   preflight,
   programLabel,
   readJson,
+  calculateRequestedHours,
   supervisorEmailsForProgram,
   supervisorSummaryForProgram,
   uniqueEmails
@@ -57,6 +59,14 @@ function buildRequest(body, employee, profile) {
     throw httpError(400, "Choose one of the programs saved in your profile.");
   }
 
+  const partialDay = clean(body.partial_day) || "Full days";
+  const specificHours = isSpecificHours(partialDay);
+  const startDate = clean(body.start_date);
+  const endDate = specificHours ? startDate : clean(body.end_date);
+  const startTime = specificHours ? clean(body.start_time) : "";
+  const endTime = specificHours ? clean(body.end_time) : "";
+  const requestedHours = specificHours ? calculateRequestedHours(startTime, endTime) : null;
+
   const request = {
     employee_user_id: employee.id,
     first_name: clean(profile.first_name),
@@ -66,10 +76,13 @@ function buildRequest(body, employee, profile) {
     program: requestedProgram,
     manager: supervisorSummaryForProgram(requestedProgram),
     time_off_type: timeOffTypeLabel(body.time_off_type),
-    start_date: clean(body.start_date),
-    end_date: clean(body.end_date),
-    partial_day: clean(body.partial_day) || "Full days",
-    business_days: calculateBusinessDays(body.start_date, body.end_date, body.partial_day),
+    start_date: startDate,
+    end_date: endDate,
+    partial_day: partialDay,
+    start_time: startTime || null,
+    end_time: endTime || null,
+    requested_hours: requestedHours,
+    business_days: calculateBusinessDays(startDate, endDate, partialDay, startTime, endTime),
     reason: clean(body.reason),
     status: "in_review"
   };
@@ -86,6 +99,14 @@ function buildRequest(body, employee, profile) {
   }
   if (!isAllowedProgram(request.program)) {
     throw httpError(400, "Choose a valid program.");
+  }
+  if (specificHours) {
+    if (!request.start_time || !request.end_time) {
+      throw httpError(400, "Enter the start and end time for the specific hours request.");
+    }
+    if (!request.requested_hours || request.requested_hours <= 0) {
+      throw httpError(400, "Enter an end time that is after the start time.");
+    }
   }
   if (!request.business_days || request.business_days <= 0) {
     throw httpError(400, "Choose dates that include at least one business day.");
@@ -117,9 +138,16 @@ async function notifyAdmins(request) {
   const html = `
     <h1>New time off request</h1>
     <p><strong>${escapeHtml(request.first_name)} ${escapeHtml(request.last_name)}</strong> submitted ${escapeHtml(request.time_off_type)}.</p>
-    <p>${escapeHtml(request.start_date)} to ${escapeHtml(request.end_date)} (${escapeHtml(request.business_days)} business days)</p>
+    <p>${escapeHtml(requestSummary(request))}</p>
     <p>Program: ${escapeHtml(request.program)}<br>Department: ${escapeHtml(request.department)}<br>Request routing: ${escapeHtml(request.manager)}</p>
     ${request.reason ? `<p>Notes: ${escapeHtml(request.reason)}</p>` : ""}
   `;
   await sendEmail({ to, subject, html });
+}
+
+function requestSummary(request) {
+  if (isSpecificHours(request.partial_day)) {
+    return `${request.start_date}, ${request.start_time} to ${request.end_time} (${request.requested_hours} hours)`;
+  }
+  return `${request.start_date} to ${request.end_date} (${request.business_days} business days)`;
 }

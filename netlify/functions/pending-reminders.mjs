@@ -1,6 +1,7 @@
 import {
   clean,
   handleError,
+  isSpecificHours,
   json,
   preflight,
   supervisorEmailsForProgram,
@@ -44,9 +45,16 @@ async function notifyPendingSupervisors(request) {
   const html = `
     <h1>Time off request still pending</h1>
     <p><strong>${escapeHtml(request.first_name)} ${escapeHtml(request.last_name)}</strong>'s request has been pending for over one week.</p>
-    <p>${escapeHtml(request.start_date)} to ${escapeHtml(request.end_date)} (${escapeHtml(request.business_days)} business days)</p>
+    <p>${escapeHtml(requestSummary(request))}</p>
     <p>Program: ${escapeHtml(request.program)}<br>Submitted: ${escapeHtml(clean(request.created_at))}</p>
     ${request.reason ? `<p>Notes: ${escapeHtml(request.reason)}</p>` : ""}
   `;
   await sendEmail({ to, subject, html });
+}
+
+function requestSummary(request) {
+  if (isSpecificHours(request.partial_day)) {
+    return `${request.start_date}, ${request.start_time || ""} to ${request.end_time || ""} (${request.requested_hours || ""} hours)`;
+  }
+  return `${request.start_date} to ${request.end_date} (${request.business_days} business days)`;
 }

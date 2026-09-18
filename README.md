@@ -221,13 +221,13 @@ This creates the database tables where employee profiles, requests, and admin si
 
 You should see a success message.
 
-If you already ran an older version of this setup file, you can still run the current file again. It will add the employee profile table, the employee account link on requests, the account type field for super admin controls, the pending reminder tracking column, and any report columns without deleting existing requests. It also removes the old one-program-only restriction from employee profiles so employees can select more than one program.
+If you already ran an older version of this setup file, you can still run the current file again. It will add the employee profile table, the employee account link on requests, the account type field for super admin controls, the pending reminder tracking column, the specific-hours request fields, and any report columns without deleting existing requests. It also removes the old one-program-only restriction from employee profiles so employees can select more than one program.
 
 To double-check:
 
 1. In the left sidebar, click **Table Editor**.
 2. Look for a table named `time_off_requests`.
-3. Open it. It should have columns such as `employee_user_id`, `first_name`, `last_name`, `email`, `department`, `program`, `start_date`, `end_date`, and `status`.
+3. Open it. It should have columns such as `employee_user_id`, `first_name`, `last_name`, `email`, `department`, `program`, `start_date`, `end_date`, `start_time`, `end_time`, `requested_hours`, and `status`.
 4. Look for a table named `employee_profiles`. This stores each employee's name, pronouns, selected program list, automatic request routing list, and account type.
 5. Also look for a table named `admin_sign_ins`. This stores admin sign-in times so the site can show requests submitted since the admin last signed on.
 

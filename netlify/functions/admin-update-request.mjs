@@ -4,6 +4,7 @@ import {
   clean,
   handleError,
   httpError,
+  isSpecificHours,
   json,
   preflight,
   readJson,
@@ -63,7 +64,7 @@ async function notifyEmployee(request) {
   const html = `
     <h1>Time off request update</h1>
     <p>Hi ${escapeHtml(request.first_name)},</p>
-    <p>Your ${escapeHtml(timeOffTypeLabel(request.time_off_type))} request for ${escapeHtml(request.start_date)} to ${escapeHtml(request.end_date)} was <strong>${escapeHtml(request.status)}</strong>.</p>
+    <p>Your ${escapeHtml(timeOffTypeLabel(request.time_off_type))} request for ${escapeHtml(requestSummary(request))} was <strong>${escapeHtml(request.status)}</strong>.</p>
     ${request.decision_note ? `<p>Note: ${escapeHtml(request.decision_note)}</p>` : ""}
   `;
   await sendEmail({ to: request.email, subject, html });
@@ -75,7 +76,7 @@ async function notifySupervisors(request, admin) {
   const html = `
     <h1>Time off request update</h1>
     <p><strong>${escapeHtml(request.first_name)} ${escapeHtml(request.last_name)}</strong>'s request is now <strong>${escapeHtml(statusLabels(request.status))}</strong>.</p>
-    <p>${escapeHtml(request.start_date)} to ${escapeHtml(request.end_date)} (${escapeHtml(request.business_days)} business days)</p>
+    <p>${escapeHtml(requestSummary(request))}</p>
     <p>Program: ${escapeHtml(request.program)}<br>Updated by: ${escapeHtml(admin.email)}</p>
     ${request.decision_note ? `<p>Note: ${escapeHtml(request.decision_note)}</p>` : ""}
   `;
@@ -88,6 +89,13 @@ function statusLabels(status) {
     approved: "approved",
     denied: "denied"
   }[status] || status;
+}
+
+function requestSummary(request) {
+  if (isSpecificHours(request.partial_day)) {
+    return `${request.start_date}, ${request.start_time || ""} to ${request.end_time || ""} (${request.requested_hours || ""} hours)`;
+  }
+  return `${request.start_date} to ${request.end_date} (${request.business_days} business days)`;
 }
 
 function timeOffTypeLabel(value) {

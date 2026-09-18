@@ -99,7 +99,12 @@ export function handleError(error) {
   return json(statusCode, { error: message });
 }
 
-export function calculateBusinessDays(startValue, endValue, partialDay) {
+export function calculateBusinessDays(startValue, endValue, partialDay, startTime = "", endTime = "") {
+  if (isSpecificHours(partialDay)) {
+    const hours = calculateRequestedHours(startTime, endTime);
+    return hours > 0 ? Math.max(0.1, Math.round((hours / 8) * 10) / 10) : 0;
+  }
+
   const start = parseLocalDate(startValue);
   const end = parseLocalDate(endValue);
   if (!start || !end || start > end) return 0;
@@ -114,6 +119,26 @@ export function calculateBusinessDays(startValue, endValue, partialDay) {
     return 0.5;
   }
   return days;
+}
+
+export function isSpecificHours(partialDay) {
+  return clean(partialDay).toLowerCase() === "specific hours";
+}
+
+export function calculateRequestedHours(startTime, endTime) {
+  const start = minutesFromTime(startTime);
+  const end = minutesFromTime(endTime);
+  if (start === null || end === null || end <= start) return 0;
+  return (end - start) / 60;
+}
+
+export function minutesFromTime(value) {
+  const match = /^(\d{2}):(\d{2})$/.exec(clean(value));
+  if (!match) return null;
+  const hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  if (hours > 23 || minutes > 59) return null;
+  return hours * 60 + minutes;
 }
 
 export function parseLocalDate(value) {
