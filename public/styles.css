@@ -39,6 +39,7 @@ body {
     radial-gradient(circle at top left, rgba(75, 160, 216, 0.16), transparent 34rem),
     linear-gradient(180deg, var(--mist) 0%, #ffffff 58%, var(--mist) 100%);
   color: var(--ink);
+  font-size: 12px;
   font-weight: 400;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
